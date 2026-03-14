@@ -1,11 +1,28 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
-import { MapPin, Star, Phone, Globe, Search } from "lucide-react";
 import { Link } from "react-router-dom";
+import { MapPin } from "lucide-react";
+import { supabase } from "../lib/supabase";
+import { ALLOWED_CATEGORIES } from "../lib/categories";
+
+type Business = {
+  id: number;
+  name: string;
+  category: string;
+  city: string | null;
+  government_rate: string | null;
+  phone: string | null;
+  website: string | null;
+  verification_status: string | null;
+  created_at: string;
+};
 
 export default function Home() {
-  const [businesses, setBusinesses] = useState<any[]>([]);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRecentBusinesses();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [category, setCategory] = useState("All");
   const [governmentRate, setGovernmentRate] = useState("All");
@@ -39,8 +56,19 @@ export default function Home() {
     };
   }, [category, governmentRate, currentPage]);
 
-  async function fetchBusinesses() {
+  async function fetchRecentBusinesses() {
     setLoading(true);
+    const { data, error } = await supabase
+      .from("businesses")
+      .select("id,name,category,city,government_rate,phone,website,verification_status,created_at")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error("Failed to fetch businesses", error);
+      setBusinesses([]);
+    } else {
+      setBusinesses((data as Business[]) ?? []);
     try {
       let query = supabase
         .from("businesses")
@@ -68,6 +96,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+    setLoading(false);
   }
 
   const filteredBusinesses = businesses.filter((b) =>
@@ -88,31 +117,36 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-neutral-50">
-      {/* Header */}
-      <header className="bg-white border-b border-neutral-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MapPin className="text-emerald-600 h-6 w-6" />
-            <span className="font-bold text-xl text-neutral-900 tracking-tight">Iraq Compass</span>
-          </div>
-          <Link
-            to="/admin"
-            className="text-sm font-medium text-neutral-600 hover:text-emerald-600 transition-colors"
-          >
-            Admin Dashboard
+      <header className="bg-white border-b border-neutral-200">
+        <div className="max-w-6xl mx-auto h-16 flex items-center justify-between px-4">
+          <div className="font-bold text-neutral-900">AI Business Directory</div>
+          <Link to="/admin" className="text-emerald-600 font-medium">
+            Dashboard
           </Link>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <div className="bg-emerald-900 py-16 px-4 sm:px-6 lg:px-8 text-center">
-        <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4 tracking-tight">
-          Discover Iraq's Best Businesses
-        </h1>
-        <p className="text-emerald-100 text-lg max-w-2xl mx-auto mb-8">
-          The most comprehensive directory powered by 18 AI Agents working around the clock.
-        </p>
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-neutral-900 mb-2">Latest verified businesses</h1>
+        <p className="text-neutral-600 mb-6">Allowed categories: {ALLOWED_CATEGORIES.join(", ")}</p>
 
+        {loading ? (
+          <p className="text-neutral-600">Loading…</p>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {businesses.map((business) => (
+              <article key={business.id} className="bg-white border border-neutral-200 rounded-xl p-4">
+                <h2 className="font-semibold text-neutral-900">{business.name}</h2>
+                <p className="text-sm text-neutral-600 mt-1">{business.category}</p>
+                <p className="text-sm text-neutral-600 mt-1 flex items-center gap-1">
+                  <MapPin className="h-4 w-4" /> {business.city ?? "Unknown city"}
+                </p>
+                <p className="text-sm text-neutral-600 mt-2">Status: {business.verification_status ?? "pending"}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </main>
         {/* Search Bar */}
         <div className="max-w-xl mx-auto relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

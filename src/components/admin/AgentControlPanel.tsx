@@ -1,7 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 interface Agent {
   name: string;
+  status: "idle" | "processing" | "error";
+  processedCount: number;
+  errors: number;
+  lastHeartbeat: string;
+}
+
+interface AgentApiResponse {
+  running: boolean;
+  agents: Agent[];
   governorate: string;
   governmentRate: string;
   status: "running" | "idle" | "error";
@@ -11,82 +20,47 @@ interface Agent {
 
 export const AgentControlPanel: React.FC = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
 
   const fetchAgents = async () => {
-    try {
-      const response = await fetch("/api/agents");
-      if (!response.ok) throw new Error("Failed to fetch agents");
-      const data = await response.json();
-      setAgents(data);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching agents:", err);
-      setError("Failed to load agent status");
-    }
-  };
-
-  const startAgents = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/orchestrator/start", { method: "POST" });
-      if (!response.ok) throw new Error("Failed to start agents");
-      await fetchAgents();
-    } catch (err) {
-      setError("Failed to start agents");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const stopAgents = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/orchestrator/stop", { method: "POST" });
-      if (!response.ok) throw new Error("Failed to stop agents");
-      await fetchAgents();
-    } catch (err) {
-      setError("Failed to stop agents");
-    } finally {
-      setLoading(false);
-    }
+    const response = await fetch("/api/agents");
+    const data = (await response.json()) as AgentApiResponse;
+    setAgents(data.agents);
+    setRunning(data.running);
   };
 
   useEffect(() => {
     fetchAgents();
-    const interval = setInterval(fetchAgents, 10000);
+    const interval = setInterval(fetchAgents, 5000);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="mt-8 p-6 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl">
-      <h2 className="text-xl font-bold text-white mb-6 font-mono tracking-tight">
-        ENRICHMENT AGENT CONTROL
-      </h2>
-
-      <div className="flex flex-wrap gap-4 mb-8">
-        <button
-          onClick={startAgents}
-          disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-mono text-sm transition-colors disabled:opacity-50"
-        >
-          START AGENTS
+    <section className="space-y-3">
+      <div className="flex gap-2">
+        <button className="px-3 py-2 bg-emerald-600 rounded" onClick={async () => {
+          await fetch("/api/orchestrator/start", { method: "POST" });
+          fetchAgents();
+        }}>
+          Start
         </button>
-        <button
-          onClick={stopAgents}
-          disabled={loading}
-          className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded font-mono text-sm transition-colors disabled:opacity-50"
-        >
-          STOP AGENTS
+        <button className="px-3 py-2 bg-red-600 rounded" onClick={async () => {
+          await fetch("/api/orchestrator/stop", { method: "POST" });
+          fetchAgents();
+        }}>
+          Stop
         </button>
-        <button
-          onClick={fetchAgents}
-          disabled={loading}
-          className="bg-neutral-700 hover:bg-neutral-600 text-white px-6 py-2 rounded font-mono text-sm transition-colors disabled:opacity-50"
-        >
-          REFRESH STATUS
-        </button>
+        <span className="text-sm text-neutral-400 self-center">Manager: {running ? "running" : "stopped"}</span>
+      </div>
+      <div className="grid md:grid-cols-2 gap-2">
+        {agents.map((agent) => (
+          <div key={agent.name} className="border border-neutral-800 rounded p-3 bg-neutral-900 text-sm">
+            <div className="font-semibold">{agent.name}</div>
+            <div>Status: {agent.status}</div>
+            <div>Tasks processed: {agent.processedCount}</div>
+            <div>Errors: {agent.errors}</div>
+          </div>
+        ))}
         <div className="ml-auto flex items-center gap-3 px-4 py-2 bg-emerald-900/20 border border-emerald-800 rounded">
           <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
           <span className="text-emerald-400 font-mono text-xs font-bold tracking-widest">QC_OVERSEER: ACTIVE</span>
@@ -139,6 +113,6 @@ export const AgentControlPanel: React.FC = () => {
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 };
