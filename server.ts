@@ -2,7 +2,6 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { runGovernor } from "./server/governors/index.js";
 import { AgentOrchestrator } from "./server/orchestrator.js";
-import { AgentOrchestrator } from "./server/orchestrator";
 
 async function startServer() {
   const app = express();
@@ -13,36 +12,20 @@ async function startServer() {
   const orchestrator = new AgentOrchestrator();
 
   // API routes
-  app.get("/api/health", (req, res) => {
+  app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
   });
 
-  app.get("/api/agents", (req, res) => {
+  app.get("/api/agents", (_req, res) => {
     res.json(orchestrator.getAgents());
   });
 
-  app.post("/api/orchestrator/start", (req, res) => {
-    orchestrator.startAll();
-
-    res.json({
-      status: "started",
-      agents: orchestrator.getAgents(),
-    });
-  });
-
-  app.post("/api/orchestrator/stop", (req, res) => {
-    orchestrator.stopAll();
-
-    res.json({
-      status: "stopped",
-      agents: orchestrator.getAgents(),
-    });
-  app.post("/api/orchestrator/start", async (req, res) => {
+  app.post("/api/orchestrator/start", async (_req, res) => {
     const result = await orchestrator.startAll();
     res.json(result);
   });
 
-  app.post("/api/orchestrator/stop", async (req, res) => {
+  app.post("/api/orchestrator/stop", async (_req, res) => {
     const result = await orchestrator.stopAll();
     res.json(result);
   });
@@ -51,8 +34,7 @@ async function startServer() {
   app.post("/api/agents/:agentName/run", async (req, res) => {
     const { agentName } = req.params;
     try {
-      // In a real app, this would be triggered by a cron job or background worker
-      // We run it asynchronously so we don't block the response
+      // Trigger asynchronously so we don't block the response
       runGovernor(agentName).catch(console.error);
       res.json({ status: "started", agentName });
     } catch (error: any) {
@@ -73,9 +55,7 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
-
     console.log("Starting enrichment agents automatically...");
-    orchestrator.startAll();
     void orchestrator.startAll();
   });
 }
