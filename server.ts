@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { runGovernor } from "./server/governors/index.js";
+import { AgentOrchestrator } from "./server/orchestrator.js";
 
 async function startServer() {
   const app = express();
@@ -8,14 +9,7 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Mock agent state
-  let agents: any[] = [
-    { name: "Agent-01", governorate: "Baghdad", status: "idle" },
-    { name: "Agent-02", governorate: "Erbil", status: "idle" },
-    { name: "Agent-03", governorate: "Basra", status: "idle" },
-    { name: "Agent-04", governorate: "Nineveh", status: "idle" },
-    { name: "Agent-05", governorate: "Sulaymaniyah", status: "idle" },
-  ];
+  const orchestrator = new AgentOrchestrator();
 
   // API routes
   app.get("/api/health", (req, res) => {
@@ -23,17 +17,25 @@ async function startServer() {
   });
 
   app.get("/api/agents", (req, res) => {
-    res.json(agents);
+    res.json(orchestrator.getAgents());
   });
 
   app.post("/api/orchestrator/start", (req, res) => {
-    agents = agents.map(a => ({ ...a, status: "running" }));
-    res.json({ status: "started", agents });
+    orchestrator.startAll();
+
+    res.json({
+      status: "started",
+      agents: orchestrator.getAgents(),
+    });
   });
 
   app.post("/api/orchestrator/stop", (req, res) => {
-    agents = agents.map(a => ({ ...a, status: "idle" }));
-    res.json({ status: "stopped", agents });
+    orchestrator.stopAll();
+
+    res.json({
+      status: "stopped",
+      agents: orchestrator.getAgents(),
+    });
   });
 
   // Endpoint to manually trigger a governor
@@ -62,6 +64,9 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+
+    console.log("Starting enrichment agents automatically...");
+    orchestrator.startAll();
   });
 }
 
