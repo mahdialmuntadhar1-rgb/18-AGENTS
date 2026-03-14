@@ -31,7 +31,7 @@ export abstract class BaseGovernor {
       updated = 0;
     for (const item of items) {
       const { data } = await this.supabase
-        .from("directory")
+        .from("businesses")
         .select("id")
         .eq("name", item.name)
         .eq("address", item.address)
@@ -39,12 +39,12 @@ export abstract class BaseGovernor {
       
       if (data) {
         await this.supabase
-          .from("directory")
+          .from("businesses")
           .update({ ...item, last_updated: new Date() })
           .eq("id", data.id);
         updated++;
       } else {
-        await this.supabase.from("directory").insert(item);
+        await this.supabase.from("businesses").insert(item);
         added++;
       }
     }

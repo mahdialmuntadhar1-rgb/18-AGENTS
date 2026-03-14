@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 import { Link } from "react-router-dom";
 import { AgentControlPanel } from "../components/admin/AgentControlPanel";
 import { supabase } from "../lib/supabase";
@@ -45,6 +46,25 @@ const GOVERNOR_STYLE_FALLBACKS = [
   { emoji: "🥐", color: "#FC5C65" },
   { emoji: "🏨", color: "#45AAF2" },
   { emoji: "💪", color: "#26de81" },
+const STATIC_GOVERNORS = [
+  { id: 1, name: "Baghdad", category: "Restaurants", emoji: "🍽️", color: "#FF6B35", records: 3247, target: 4000, status: "active", lastRun: "2m ago", errors: 2 },
+  { id: 2, name: "Basra", category: "Cafes", emoji: "☕", color: "#F7B731", records: 1892, target: 2500, status: "active", lastRun: "5m ago", errors: 0 },
+  { id: 3, name: "Nineveh", category: "Bakeries", emoji: "🥐", color: "#FC5C65", records: 843, target: 1200, status: "idle", lastRun: "1h ago", errors: 1 },
+  { id: 4, name: "Erbil", category: "Hotels", emoji: "🏨", color: "#45AAF2", records: 612, target: 800, status: "active", lastRun: "8m ago", errors: 0 },
+  { id: 5, name: "Sulaymaniyah", category: "Gyms", emoji: "💪", color: "#26de81", records: 438, target: 600, status: "active", lastRun: "12m ago", errors: 3 },
+  { id: 6, name: "Kirkuk", category: "Beauty Salons", emoji: "💅", color: "#fd9644", records: 1124, target: 1500, status: "active", lastRun: "3m ago", errors: 0 },
+  { id: 7, name: "Duhok", category: "Barbershops", emoji: "✂️", color: "#a55eea", records: 967, target: 1200, status: "idle", lastRun: "45m ago", errors: 0 },
+  { id: 8, name: "Anbar", category: "Pharmacies", emoji: "💊", color: "#2bcbba", records: 756, target: 1000, status: "active", lastRun: "6m ago", errors: 1 },
+  { id: 9, name: "Babil", category: "Supermarkets", emoji: "🛒", color: "#4b7bec", records: 521, target: 700, status: "active", lastRun: "9m ago", errors: 0 },
+  { id: 10, name: "Karbala", category: "Electronics", emoji: "📱", color: "#0fb9b1", records: 389, target: 600, status: "error", lastRun: "2h ago", errors: 12 },
+  { id: 11, name: "Wasit", category: "Clothing Stores", emoji: "👗", color: "#e84393", records: 1043, target: 1400, status: "active", lastRun: "4m ago", errors: 0 },
+  { id: 12, name: "Dhi Qar", category: "Car Services", emoji: "🚗", color: "#778ca3", records: 334, target: 500, status: "idle", lastRun: "3h ago", errors: 0 },
+  { id: 13, name: "Maysan", category: "Dentists", emoji: "🦷", color: "#20bf6b", records: 287, target: 400, status: "active", lastRun: "15m ago", errors: 0 },
+  { id: 14, name: "Muthanna", category: "Clinics", emoji: "🏥", color: "#eb3b5a", records: 412, target: 600, status: "active", lastRun: "7m ago", errors: 2 },
+  { id: 15, name: "Najaf", category: "Schools", emoji: "🏫", color: "#f7b731", records: 891, target: 1100, status: "active", lastRun: "11m ago", errors: 0 },
+  { id: 16, name: "Qadisiyyah", category: "Co-working Spaces", emoji: "💼", color: "#45aaf2", records: 156, target: 300, status: "idle", lastRun: "6h ago", errors: 1 },
+  { id: 17, name: "Saladin", category: "Entertainment", emoji: "🎭", color: "#fa8231", records: 743, target: 1000, status: "active", lastRun: "18m ago", errors: 0 },
+  { id: 18, name: "Diyala", category: "Tourism", emoji: "🕌", color: "#2d98da", records: 512, target: 800, status: "active", lastRun: "22m ago", errors: 4 },
 ];
 
 const statusConfig: Record<string, { label: string; bg: string; border: string; dot: string }> = {
@@ -78,6 +98,16 @@ export default function Admin() {
   const [cityRecords, setCityRecords] = useState<Record<string, BusinessRecord[]>>({});
   const [loadingCityRecords, setLoadingCityRecords] = useState<Record<string, boolean>>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [governors, setGovernors] = useState(STATIC_GOVERNORS);
+  const [newToday, setNewToday] = useState(1247); // Mocked for visual
+
+  // Pagination & Dropdown states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [expandedGovId, setExpandedGovId] = useState<string | number | null>(null);
+  const [govRecords, setGovRecords] = useState<Record<string | number, any[]>>({});
+  const [loadingRecords, setLoadingRecords] = useState<Record<string | number, boolean>>({});
+
+  const itemsPerPage = 6;
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -95,14 +125,36 @@ export default function Admin() {
     const match = candidate.match(/(\d+)/);
     const governorateIndex = match ? Number(match[1]) - 1 : index;
     return IRAQI_GOVERNORATES[governorateIndex] ?? IRAQI_GOVERNORATES[index] ?? `Governor ${index + 1}`;
+  useEffect(() => {
+    setCurrentPage(1);
+    setExpandedGovId(null);
+  }, [activeFilter]);
+
+  async function fetchGovRecords(govId: string | number, govName: string) {
+    if (govRecords[govId]) return;
+    
+    setLoadingRecords(prev => ({ ...prev, [govId]: true }));
+    try {
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("name, category, status, created_at")
+        .eq("governorate", govName)
+        .limit(10)
+        .order("created_at", { ascending: false });
+        
+      if (error) throw error;
+      setGovRecords(prev => ({ ...prev, [govId]: data || [] }));
+    } catch (err) {
+      console.error("Error fetching records:", err);
+    } finally {
+      setLoadingRecords(prev => ({ ...prev, [govId]: false }));
+    }
   }
 
   async function fetchData() {
     try {
-      const response = await fetch("/api/agents");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch agents: ${response.status}`);
-      }
+      const { data, error } = await supabase.from("agents").select("*").order("agent_name");
+      if (error) throw error;
 
       const data = await response.json();
       const liveGovernors = Array.isArray(data)
@@ -125,10 +177,37 @@ export default function Admin() {
 
       setGovernors(liveGovernors);
       setNewToday(liveGovernors.reduce((total: number, governor: Governor) => total + governor.records, 0));
+      if (data && data.length > 0) {
+        const merged = data.map((dbGov, index) => {
+          // Match by name or index to ensure we get the right Iraqi city name
+          const staticGov = STATIC_GOVERNORS.find((g) => g.name === dbGov.agent_name) || STATIC_GOVERNORS[index] || ({} as any);
+          
+          // Format last run time
+          let lastRunStr = "Never";
+          if (dbGov.last_run) {
+            const diffMins = Math.round((new Date().getTime() - new Date(dbGov.last_run).getTime()) / 60000);
+            if (diffMins < 60) lastRunStr = `${diffMins}m ago`;
+            else if (diffMins < 1440) lastRunStr = `${Math.floor(diffMins / 60)}h ago`;
+            else lastRunStr = new Date(dbGov.last_run).toLocaleDateString();
+          }
+
+          return {
+            id: dbGov.id,
+            name: staticGov.name || dbGov.agent_name,
+            category: dbGov.category,
+            emoji: staticGov.emoji || "🤖",
+            color: staticGov.color || "#45AAF2",
+            records: dbGov.records_collected || 0,
+            target: dbGov.target || 1000,
+            status: dbGov.status || "idle",
+            lastRun: lastRunStr,
+            errors: dbGov.errors || 0,
+          };
+        });
+        setGovernors(merged as any);
+      }
     } catch (err) {
       console.error("Error fetching agents:", err);
-      setGovernors([]);
-      setNewToday(0);
     }
   }
 
@@ -269,7 +348,7 @@ export default function Admin() {
               </div>
             </div>
             <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -1, color: "#fff" }}>
-              {governors.length} GOVERNORS DASHBOARD
+              18 GOVERNORS DASHBOARD
             </div>
             <div style={{ fontSize: 12, color: "#64748b", marginTop: 4, letterSpacing: 2, display: "flex", gap: "16px" }}>
               <span>BUSINESS INTELLIGENCE COLLECTION NETWORK</span>
@@ -298,8 +377,10 @@ export default function Admin() {
           ].map((stat, i) => (
             <div key={i} style={{
               background: "rgba(255,255,255,0.03)",
-              border: `1px solid rgba(255,255,255,0.07)`,
               borderTop: `2px solid ${stat.color}`,
+              borderRight: `1px solid rgba(255,255,255,0.07)`,
+              borderBottom: `1px solid rgba(255,255,255,0.07)`,
+              borderLeft: `1px solid rgba(255,255,255,0.07)`,
               borderRadius: 8, padding: "20px 20px",
               animation: `slideIn 0.4s ease ${i * 0.1}s both`,
             }}>
@@ -399,11 +480,53 @@ export default function Admin() {
               NEXT
             </button>
           </div>
+        {/* Pagination Controls */}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 20, marginBottom: 24 }}>
+          <button 
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: currentPage === 1 ? "#334155" : "#45AAF2",
+              padding: "8px 16px",
+              borderRadius: 4,
+              cursor: currentPage === 1 ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontSize: 11,
+              letterSpacing: 1,
+              transition: "all 0.2s"
+            }}
+          >
+            [ PREVIOUS ]
+          </button>
+          <span style={{ fontSize: 11, color: "#64748b", letterSpacing: 2 }}>
+            PAGE <span style={{ color: "#fff", fontWeight: 700 }}>{currentPage}</span> OF <span style={{ color: "#fff", fontWeight: 700 }}>{Math.ceil(filtered.length / itemsPerPage) || 1}</span>
+          </span>
+          <button 
+            disabled={currentPage >= Math.ceil(filtered.length / itemsPerPage)}
+            onClick={() => setCurrentPage(prev => prev + 1)}
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: currentPage >= Math.ceil(filtered.length / itemsPerPage) ? "#334155" : "#45AAF2",
+              padding: "8px 16px",
+              borderRadius: 4,
+              cursor: currentPage >= Math.ceil(filtered.length / itemsPerPage) ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontSize: 11,
+              letterSpacing: 1,
+              transition: "all 0.2s"
+            }}
+          >
+            [ NEXT ]
+          </button>
         </div>
 
         {/* Governor Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {paginatedGovernors.map((gov, i) => {
+          {filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((gov, i) => {
             const pct = gov.target > 0 ? Math.round((gov.records / gov.target) * 100) : 0;
             const sc = statusConfig[gov.status] || statusConfig.idle;
             const isSelected = expandedGovernorId === gov.id;
@@ -414,7 +537,9 @@ export default function Admin() {
               <div key={gov.id} className="gov-card"
                 style={{
                   background: isSelected ? "rgba(69,170,242,0.06)" : "rgba(255,255,255,0.025)",
-                  border: `1px solid ${isSelected ? "#45AAF2" : "rgba(255,255,255,0.07)"}`,
+                  borderTop: `1px solid ${isSelected ? "#45AAF2" : "rgba(255,255,255,0.07)"}`,
+                  borderRight: `1px solid ${isSelected ? "#45AAF2" : "rgba(255,255,255,0.07)"}`,
+                  borderBottom: `1px solid ${isSelected ? "#45AAF2" : "rgba(255,255,255,0.07)"}`,
                   borderLeft: `3px solid ${gov.color}`,
                   borderRadius: 8, padding: "16px 18px",
                   animation: `slideIn 0.4s ease ${i * 0.04}s both`,
@@ -553,6 +678,56 @@ export default function Admin() {
                             </div>
                           );
                         })}
+                {/* View Records Button */}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const isExpanded = expandedGovId === gov.id;
+                    setExpandedGovId(isExpanded ? null : gov.id);
+                    if (!isExpanded) fetchGovRecords(gov.id, gov.name);
+                  }}
+                  style={{
+                    width: "100%", marginTop: 12, padding: "8px",
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    borderRadius: 4, color: "#45AAF2", fontSize: 10,
+                    fontWeight: 700, letterSpacing: 1, cursor: "pointer",
+                    transition: "all 0.2s", fontFamily: "inherit"
+                  }}
+                >
+                  {expandedGovId === gov.id ? "▲ HIDE RECORDS" : "▼ VIEW RECORDS"}
+                </button>
+
+                {/* Expanded Records */}
+                {expandedGovId === gov.id && (
+                  <div style={{ 
+                    marginTop: 12, padding: "12px", 
+                    background: "rgba(0,0,0,0.2)", 
+                    border: "1px solid rgba(255,255,255,0.05)",
+                    borderRadius: 4, animation: "slideIn 0.3s ease"
+                  }}>
+                    {loadingRecords[gov.id] ? (
+                      <div style={{ fontSize: 9, color: "#64748b", textAlign: "center", padding: "10px", letterSpacing: 1 }}>
+                        FETCHING DATA...
+                      </div>
+                    ) : govRecords[gov.id]?.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {govRecords[gov.id].map((rec, idx) => (
+                          <div key={idx} style={{ 
+                            display: "grid", gridTemplateColumns: "1.5fr 1fr 0.8fr 1fr", 
+                            gap: 8, fontSize: 8, borderBottom: "1px solid rgba(255,255,255,0.03)",
+                            paddingBottom: 4
+                          }}>
+                            <span style={{ color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.name}</span>
+                            <span style={{ color: "#64748b" }}>{rec.category}</span>
+                            <span style={{ color: rec.status === "active" ? "#26de81" : "#f7b731" }}>{rec.status?.toUpperCase()}</span>
+                            <span style={{ color: "#475569", textAlign: "right" }}>{new Date(rec.created_at).toLocaleDateString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 9, color: "#64748b", textAlign: "center", padding: "10px", letterSpacing: 1 }}>
+                        NO RECORDS FOUND
                       </div>
                     )}
                   </div>

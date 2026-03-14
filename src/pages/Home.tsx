@@ -16,7 +16,7 @@ export default function Home() {
   async function fetchBusinesses() {
     setLoading(true);
     try {
-      let query = supabase.from("directory").select("*").order("rating", { ascending: false });
+      let query = supabase.from("businesses").select("*").order("rating", { ascending: false });
       
       if (category !== "All") {
         query = query.eq("category", category);

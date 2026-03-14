@@ -1,7 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { runGovernor } from "./server/governors/index.js";
-import { AgentOrchestrator } from "./server/orchestrator.js";
 
 async function startServer() {
   const app = express();
@@ -9,33 +8,40 @@ async function startServer() {
 
   app.use(express.json());
 
-  const orchestrator = new AgentOrchestrator();
+  // Mock agent state
+  let agents: any[] = [
+    { name: "Agent-01", governorate: "Baghdad", status: "idle" },
+    { name: "Agent-02", governorate: "Erbil", status: "idle" },
+    { name: "Agent-03", governorate: "Basra", status: "idle" },
+    { name: "Agent-04", governorate: "Nineveh", status: "idle" },
+    { name: "Agent-05", governorate: "Sulaymaniyah", status: "idle" },
+  ];
 
   // API routes
-  app.get("/api/health", (_req, res) => {
+  app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
 
-  app.get("/api/agents", (_req, res) => {
-    res.json(orchestrator.getAgents());
+  app.get("/api/agents", (req, res) => {
+    res.json(agents);
   });
 
-  app.post("/api/orchestrator/start", async (req, res) => {
-  app.post("/api/orchestrator/start", async (_req, res) => {
-    const result = await orchestrator.startAll();
-    res.json(result);
+  app.post("/api/orchestrator/start", (req, res) => {
+    agents = agents.map(a => ({ ...a, status: "running" }));
+    res.json({ status: "started", agents });
   });
 
-  app.post("/api/orchestrator/stop", async (_req, res) => {
-    const result = await orchestrator.stopAll();
-    res.json(result);
+  app.post("/api/orchestrator/stop", (req, res) => {
+    agents = agents.map(a => ({ ...a, status: "idle" }));
+    res.json({ status: "stopped", agents });
   });
 
   // Endpoint to manually trigger a governor
   app.post("/api/agents/:agentName/run", async (req, res) => {
     const { agentName } = req.params;
     try {
-      // Trigger asynchronously so we don't block the response
+      // In a real app, this would be triggered by a cron job or background worker
+      // We run it asynchronously so we don't block the response
       runGovernor(agentName).catch(console.error);
       res.json({ status: "started", agentName });
     } catch (error: any) {
@@ -56,8 +62,6 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    console.log("Starting enrichment agents automatically...");
-    void orchestrator.startAll();
   });
 }
 
