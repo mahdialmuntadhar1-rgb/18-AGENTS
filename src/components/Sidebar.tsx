@@ -17,13 +17,15 @@ import { NavLink } from 'react-router-dom';
 
 const Sidebar: React.FC = () => {
   const navItems = [
-    { to: '/', icon: <LayoutDashboard size={20} />, label: 'Overview', labelAr: 'نظرة عامة' },
+    { to: '/', icon: <LayoutDashboard size={20} />, label: 'Command Center', labelAr: 'مركز القيادة' },
+    { to: '/approval', icon: <CheckCircle size={20} />, label: 'Approval Hub', labelAr: 'مركز الموافقة' },
+    { to: '/report', icon: <FileText size={20} />, label: 'Final Report', labelAr: 'التقرير النهائي' },
     { to: '/agents', icon: <Bot size={20} />, label: 'Agent Registry', labelAr: 'سجل الوكلاء' },
     { to: '/commander', icon: <Terminal size={20} />, label: 'Agent Commander', labelAr: 'قائد الوكلاء' },
     { to: '/pipelines', icon: <Activity size={20} />, label: 'Pipelines', labelAr: 'مسارات البيانات' },
     { to: '/tasks', icon: <CheckSquare size={20} />, label: 'Task Manager', labelAr: 'مدير المهام' },
     { to: '/qc', icon: <AlertTriangle size={20} />, label: 'Quality Control', labelAr: 'مراقبة الجودة' },
-    { to: '/review', icon: <CheckCircle size={20} />, label: 'Approval Hub', labelAr: 'مركز الموافقة' },
+    { to: '/review', icon: <CheckCircle size={20} />, label: 'Review Table', labelAr: 'جدول المراجعة' },
     { to: '/cleaner', icon: <Wand2 size={20} />, label: 'Data Cleaner', labelAr: 'منظف البيانات' },
     { to: '/logs', icon: <FileText size={20} />, label: 'System Logs', labelAr: 'سجلات النظام' },
     { to: '/export', icon: <Download size={20} />, label: 'Export Data', labelAr: 'تصدير البيانات' },

@@ -5,7 +5,9 @@
 
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
-import Overview from "./pages/Overview";
+import CommandCenter from "./pages/CommandCenter";
+import ApprovalHub from "./pages/ApprovalHub";
+import FinalReport from "./pages/FinalReport";
 import Agents from "./pages/Agents";
 import AgentCommander from "./pages/AgentCommander";
 import Pipelines from "./pages/Pipelines";
@@ -21,7 +23,9 @@ export default function App() {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Overview />} />
+          <Route path="/" element={<CommandCenter />} />
+          <Route path="/approval" element={<ApprovalHub />} />
+          <Route path="/report" element={<FinalReport />} />
           <Route path="/agents" element={<Agents />} />
           <Route path="/commander" element={<AgentCommander />} />
           <Route path="/pipelines" element={<Pipelines />} />
