@@ -8,6 +8,15 @@
 -- 0. Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- 0.1 Drop existing tables so we can recreate with correct columns
+--     ⚠️ This DELETES all existing data. Remove this section if you want to keep data.
+DROP TABLE IF EXISTS agent_logs CASCADE;
+DROP TABLE IF EXISTS agent_tasks CASCADE;
+DROP TABLE IF EXISTS agents CASCADE;
+DROP TABLE IF EXISTS verified_businesses CASCADE;
+DROP TABLE IF EXISTS raw_businesses CASCADE;
+DROP TABLE IF EXISTS businesses CASCADE;
+
 -- ============================================================
 -- 1. BUSINESSES  (main table — used by FinderAgent, SocialScraper,
 --    BaseGovernor, Home.tsx, Admin.tsx, AgentCommander import)
