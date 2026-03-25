@@ -32,6 +32,16 @@ Set these secrets in your Cloudflare Worker dashboard (or via `wrangler secret p
 - `VITE_SUPABASE_URL` (for this project: `https://mxxaxhrtccomkazpvthn.supabase.co`)
 - `VITE_SUPABASE_ANON_KEY`
 
+## Deployment Synchronization (Cloudflare)
+
+To avoid URL collision with other projects (for example Iraq Compass), keep this Worker identity and asset configuration:
+
+- Worker name: `tawaw18agent`
+- Assets directory: `./dist`
+- Compatibility date: `2026-03-25`
+
+If a deployment is created under a new Worker slot/environment, re-add all required secrets for that slot before running pipelines.
+
 ## Supabase Schema
 
 Before running the app, ensure you have executed the SQL schema provided in the `Step 1` response in your Supabase SQL Editor.
