@@ -48,6 +48,11 @@ interface AgentTask {
   created_at: string;
 }
 
+interface PipelineConfig {
+  cityCenterOnly: boolean;
+  languagePriority: boolean;
+}
+
 // --- Constants ---
 const AGENTS: Agent[] = [
   { id: 1, name: 'Orchestrator', role: 'Queue Manager & Overseer' },
@@ -102,6 +107,7 @@ const TASK_TEMPLATES = [
   { label: 'Detect duplicates', prompt: 'Find duplicates: name sim >80%, same phone, near address. Output: [{pair:[id1,id2], score, action}]' },
   { label: 'Assign categories', prompt: 'Categorize each business into one of: restaurants, cafes, bakeries, hotels, gyms, beauty_salons, pharmacies, supermarkets. Output updated JSON.' },
   { label: 'Final QA check', prompt: 'QA before publish. Check: all fields complete, no placeholders, score>=60, trilingual content present. Output: [{name, pass:bool, issues:[]}]' },
+  { label: 'Launch Sulemania City Center pilot', prompt: 'Launch pilot: Sulemania City Center only. Skip Bazyan/Tasluja/Bakrajo. Keep native name and return Arabic + English columns. Force social links to link_instagram/link_facebook or "Requires Human Review". Output pilot activity log.' },
 ];
 
 export default function AgentCommander() {
@@ -118,6 +124,10 @@ export default function AgentCommander() {
   const [cityCenterOnly, setCityCenterOnly] = useState(true);
   const [localScriptPriority, setLocalScriptPriority] = useState(true);
   const [forceColumnWrite, setForceColumnWrite] = useState(true);
+  const [pipelineConfig, setPipelineConfig] = useState<PipelineConfig>({
+    cityCenterOnly: true,
+    languagePriority: true,
+  });
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -163,6 +173,7 @@ export default function AgentCommander() {
         : "- Force Column Write: disabled."
     ].join("\n");
     fullPrompt = `Intelligence Layer Controls:\n${intelligenceControls}\n\n${fullPrompt}`;
+    fullPrompt += `\n\n--- Pipeline Settings ---\ncity_center_only: ${pipelineConfig.cityCenterOnly}\nlanguage_priority: ${pipelineConfig.languagePriority ? 'native-first' : 'balanced'}\n`;
     if (uploadedFiles.length > 0) {
       fullPrompt += "\n\n";
       uploadedFiles.forEach(file => {
@@ -493,6 +504,25 @@ export default function AgentCommander() {
                 <label className="flex items-center justify-between text-[10px] font-bold text-gray-600">
                   Force Column Write
                   <input type="checkbox" checked={forceColumnWrite} onChange={(e) => setForceColumnWrite(e.target.checked)} />
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
+                <h4 className="text-[10px] font-black text-[#1B2B5E] uppercase">Real AI Upgrade</h4>
+                <label className="flex items-center justify-between text-[10px] font-bold text-gray-600">
+                  City Center Only (6km ring)
+                  <input
+                    type="checkbox"
+                    checked={pipelineConfig.cityCenterOnly}
+                    onChange={(e) => setPipelineConfig(prev => ({ ...prev, cityCenterOnly: e.target.checked }))}
+                    className="accent-[#1B2B5E]"
+                  />
+                </label>
+                <label className="flex items-center justify-between text-[10px] font-bold text-gray-600">
+                  Language Priority (Native → AR/EN)
+                  <input
+                    type="checkbox"
+                    checked={pipelineConfig.languagePriority}
+                    onChange={(e) => setPipelineConfig(prev => ({ ...prev, languagePriority: e.target.checked }))}
+                    className="accent-[#1B2B5E]"
+                  />
                 </label>
               </div>
 
