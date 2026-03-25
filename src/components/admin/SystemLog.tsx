@@ -8,58 +8,12 @@ interface LogEntry {
   agent?: string;
 }
 
-const AGENTS = [
-  "Baghdad", "Basra", "Nineveh", "Erbil", "Sulaymaniyah", 
-  "Kirkuk", "Duhok", "Anbar", "Babil", "Karbala", "QC_OVERSEER"
-];
-
-const MESSAGES = [
-  "Payload received from Google Maps API",
-  "Enriching record with social media handles",
-  "Validation passed for business entity",
-  "Connection timeout, retrying in 5s",
-  "New category detected: 'Art Gallery'",
-  "Database sync complete",
-  "Rate limit reached for Yelp API",
-  "Agent heartbeat detected",
-  "Coordinates verified for location",
-  "Duplicate record merged",
-  "QC: Verifying source authenticity",
-  "QC: Flagging potential mock data in Basra",
-  "QC: Cross-referencing Yelp vs Google data",
-  "QC: Agent performance audit initiated",
-  "QC: Source verification successful for Baghdad"
-];
-
 export function SystemLog() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Initial logs
-    const initialLogs: LogEntry[] = Array.from({ length: 10 }).map((_, i) => ({
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: new Date(Date.now() - (10 - i) * 5000).toLocaleTimeString(),
-      level: i % 5 === 0 ? "WARN" : i % 8 === 0 ? "ERROR" : "INFO",
-      message: MESSAGES[Math.floor(Math.random() * MESSAGES.length)],
-      agent: AGENTS[Math.floor(Math.random() * AGENTS.length)]
-    }));
-    setLogs(initialLogs);
-
-    // Add new logs periodically
-    const interval = setInterval(() => {
-      const level = Math.random() > 0.8 ? (Math.random() > 0.5 ? "WARN" : "ERROR") : (Math.random() > 0.7 ? "SUCCESS" : "INFO");
-      const newLog: LogEntry = {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toLocaleTimeString(),
-        level,
-        message: MESSAGES[Math.floor(Math.random() * MESSAGES.length)],
-        agent: AGENTS[Math.floor(Math.random() * AGENTS.length)]
-      };
-      setLogs(prev => [...prev.slice(-49), newLog]);
-    }, 3000);
-
-    return () => clearInterval(interval);
+    setLogs([]);
   }, []);
 
   useEffect(() => {
@@ -106,6 +60,9 @@ export function SystemLog() {
           scrollbarColor: "rgba(255,255,255,0.1) transparent"
         }}
       >
+        {logs.length === 0 && (
+          <div style={{ color: "#64748b" }}>Awaiting live worker events...</div>
+        )}
         {logs.map(log => (
           <div key={log.id} style={{ display: "flex", gap: 12, opacity: 0.9 }}>
             <span style={{ color: "#475569", minWidth: 70 }}>[{log.timestamp}]</span>

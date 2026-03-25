@@ -43,11 +43,20 @@ function findAgent(name: string) {
 
 async function routeApi(request: Request, env: Env, pathname: string): Promise<Response | null> {
   if (pathname === '/api/task/run' && request.method === 'POST') {
+    if (!env.VITE_SUPABASE_URL || !env.GEMINI_API_KEY) {
+      return json({ error: 'Missing required Cloudflare secrets: VITE_SUPABASE_URL and/or GEMINI_API_KEY.' }, 500);
+    }
+
     const { taskType, cities, instruction } = (await request.json()) as {
       taskType: string;
       cities: string[];
       instruction?: string;
     };
+    const requestedCities = Array.isArray(cities) ? cities : [];
+
+    if (!taskType || requestedCities.length === 0) {
+      return json({ error: 'taskType and at least one city are required.' }, 400);
+    }
 
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
@@ -55,7 +64,7 @@ async function routeApi(request: Request, env: Env, pathname: string): Promise<R
 
     void (async () => {
       try {
-        for await (const event of runAgent(env, taskType, Array.isArray(cities) ? cities : [], instruction ?? '')) {
+        for await (const event of runAgent(env, taskType, requestedCities, instruction ?? '')) {
           await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         }
         await writer.write(encoder.encode('data: {"type":"done"}\n\n'));
@@ -74,6 +83,7 @@ async function routeApi(request: Request, env: Env, pathname: string): Promise<R
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
         Connection: 'keep-alive',
         'Access-Control-Allow-Origin': '*',
       },

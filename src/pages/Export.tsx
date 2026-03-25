@@ -41,33 +41,31 @@ const Export: React.FC = () => {
 
   const handleExport = () => {
     setExporting(true);
-    setTimeout(() => {
-      const exportData = businesses.map(b => ({
-        name: {
-          ar: b.name_ar,
-          ku: b.name_ku,
-          en: b.name_en
-        },
-        category: b.category,
-        governorate: b.governorate,
-        city: b.city,
-        coordinates: b.coordinates,
-        phone: b.phone,
-        website: b.website,
-        photos: b.photos,
-        confidence_score: b.confidence_score
-      }));
+    const exportData = businesses.map(b => ({
+      name: {
+        ar: b.name_ar,
+        ku: b.name_ku,
+        en: b.name_en
+      },
+      category: b.category,
+      governorate: b.governorate,
+      city: b.city,
+      coordinates: b.coordinates,
+      phone: b.phone,
+      website: b.website,
+      photos: b.photos,
+      confidence_score: b.confidence_score
+    }));
 
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `iraq_compass_export_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setExporting(false);
-    }, 1000);
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `iraq_compass_export_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setExporting(false);
   };
 
   return (

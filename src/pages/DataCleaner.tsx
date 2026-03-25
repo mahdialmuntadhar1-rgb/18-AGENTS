@@ -34,18 +34,15 @@ const DataCleaner: React.FC = () => {
     }
   };
 
-  const runRepair = () => {
+  const runRepair = async () => {
     setIsProcessing(true);
-    // Simulate processing
-    setTimeout(() => {
-      const repaired = previewData.map(item => ({
-        ...item,
-        name_raw: cleaningService.repairText(item.name_raw || item.name || ''),
-        category_raw: cleaningService.repairText(item.category_raw || item.category || '')
-      }));
-      setPreviewData(repaired);
-      setIsProcessing(false);
-    }, 1500);
+    const repaired = previewData.map(item => ({
+      ...item,
+      name_raw: cleaningService.repairText(item.name_raw || item.name || ''),
+      category_raw: cleaningService.repairText(item.category_raw || item.category || '')
+    }));
+    setPreviewData(repaired);
+    setIsProcessing(false);
   };
 
   const pushToSupabase = async () => {
