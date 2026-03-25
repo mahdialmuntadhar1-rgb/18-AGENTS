@@ -5,7 +5,6 @@ export interface Env {
   GEMINI_API_KEY: string;
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
-  EXPORT_SUPABASE_ANON_KEY?: string;
   ASSETS: { fetch: (request: Request) => Promise<Response> };
 }
 
