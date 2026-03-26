@@ -4,7 +4,7 @@ compatibility_date = "2026-03-26"
 workers_dev = true
 
 [triggers]
-crons = ["*/10 * * * *"]
+crons = ["*/5 * * * *"]
 
 [[queues.producers]]
 binding = "AGENT_TASK_QUEUE"
@@ -15,10 +15,23 @@ queue = "agent-task-queue"
 max_batch_size = 10
 max_batch_timeout = 30
 
-[vars]
-RUN_LOOP_ENDPOINT = "/api/orchestrator/run-loop"
+[[durable_objects.bindings]]
+name = "AGENT_STATE_DO"
+class_name = "AgentStateDO"
 
-# Set these with `wrangler secret put` in real deployments:
-# VITE_SUPABASE_URL
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AgentStateDO"]
+
+[vars]
+BUILD_VERSION = "2026-03-26"
+MAX_TASKS_PER_RUN = "5"
+MAX_SECONDS_PER_RUN = "20"
+MAX_ATTEMPTS = "4"
+RETRY_BASE_SECONDS = "30"
+
+# Set secrets via `wrangler secret put` (never commit secrets):
+# SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
-# INTERNAL_ORCHESTRATOR_TOKEN
+# ADMIN_SHARED_SECRET
+# GOOGLE_PLACES_API_KEY
