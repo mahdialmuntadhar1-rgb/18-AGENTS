@@ -36,6 +36,18 @@ supabase db reset
 supabase db push
 ```
 
+
+## Tooling authentication
+
+Before running Supabase/Wrangler commands, authenticate locally:
+
+```bash
+supabase login
+npx wrangler login
+```
+
+If you use CI-managed tokens, ensure equivalent auth is configured via environment variables before running deploy commands.
+
 ## Runtime endpoints
 
 - `GET /api/health` → basic liveness/version/time.
@@ -63,3 +75,8 @@ alter publication supabase_realtime add table businesses;
 ```
 
 When using Postgres Changes with RLS, your `SELECT` policies determine which rows client subscriptions receive.
+
+## Launch readiness review
+
+Use `docs/FINAL_CHECK_REVIEW.md` as the final reviewer checklist before merging launch-bound changes.
+
