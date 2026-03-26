@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { toast } from 'sonner';
+import { toast } from '../lib/toast';
 
 export function useSupabaseRealtime() {
   const [recordCount, setRecordCount] = useState(0);
@@ -24,10 +24,14 @@ export function useSupabaseRealtime() {
         (payload) => {
           const log = payload.new;
           const toastType = log.type === 'error' ? 'error' : log.type === 'warning' ? 'warning' : 'success';
-          
-          toast[toastType](`[${log.agent_id.toUpperCase()}]`, {
-            description: log.message,
-          });
+
+          if (toastType === 'error') {
+            toast.error(`[${log.agent_id.toUpperCase()}]`, { description: log.message });
+          } else if (toastType === 'warning') {
+            toast.warning(`[${log.agent_id.toUpperCase()}]`, { description: log.message });
+          } else {
+            toast.success(`[${log.agent_id.toUpperCase()}]`, { description: log.message });
+          }
         }
       )
       .subscribe();

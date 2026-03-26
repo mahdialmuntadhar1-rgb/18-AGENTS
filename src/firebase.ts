@@ -1,21 +1,25 @@
-import { initializeApp } from 'firebase/app';
+import { FirebaseOptions, getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import { getFirestore } from 'firebase/firestore';
 
-// Initialize Firebase SDK
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
+const firebaseConfig: FirebaseOptions & { projectId: string } = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? 'placeholder-api-key',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? 'placeholder.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? 'placeholder-project',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? 'placeholder.appspot.com',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '000000000000',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '1:000000000000:web:placeholder',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+};
 
-// Validate connection to Firestore
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
-  }
+if (!import.meta.env.VITE_FIREBASE_API_KEY || !import.meta.env.VITE_FIREBASE_PROJECT_ID) {
+  console.warn('Firebase configuration is incomplete. Using placeholder config; auth/firestore calls will fail until VITE_FIREBASE_* vars are set.');
 }
-testConnection();
+
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+export const db = import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID
+  ? getFirestore(app, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID)
+  : getFirestore(app);
+
+export const auth = getAuth(app);

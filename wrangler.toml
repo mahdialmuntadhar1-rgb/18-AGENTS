@@ -1,0 +1,7 @@
+name = "iraq-compass-agent-runtime"
+main = "worker/agent-runtime.ts"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[vars]
+APP_ENV = "production"

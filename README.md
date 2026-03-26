@@ -1,36 +1,63 @@
 # Iraq Compass Data Verification Dashboard
 
-Internal tool to clean, verify, and approve 70,000+ Iraqi business records.
+Internal dashboard for cleaning, verifying, and approving Iraqi business records.
 
-## Setup Instructions for Replit
+## Architecture (current)
 
-1. **Create a new Replit** using the "React" template.
-2. **Upload all files** from this repository to your Replit.
-3. **Configure Environment Variables**:
-   - Go to the **Secrets** tab in Replit.
-   - Add `VITE_SUPABASE_URL` with your Supabase project URL.
-   - Add `VITE_SUPABASE_ANON_KEY` with your Supabase anon key.
-4. **Install Dependencies**:
-   - Replit should automatically detect `package.json` and install dependencies.
-   - If not, run `npm install` in the Shell.
-5. **Run the App**:
-   - Click the **Run** button at the top.
-   - The dashboard will be available in the Webview.
+- **Frontend:** Vite + React in `src/`
+- **Local full-stack runtime:** Express server in `server.ts` (serves API + Vite middleware in dev, serves `dist/` in production mode)
+- **Cloudflare runtime:** Worker entry in `worker/agent-runtime.ts` (deployed with Wrangler)
+- **Data providers:**
+  - Firebase Auth + Firestore (browser)
+  - Supabase (browser realtime + server admin flows)
 
-## Supabase Schema
+> Frontend and Worker are deployable separately. Wrangler does **not** deploy the Vite frontend bundle.
 
-Before running the app, ensure you have executed the SQL schema provided in the `Step 1` response in your Supabase SQL Editor.
+## Environment setup
 
-## Features
+1. Copy examples:
+   - `.env.example` → `.env` (local Node + Vite usage)
+   - `.dev.vars.example` → `.dev.vars` (Wrangler local/dev/deploy usage)
+2. Fill in real credentials; do not commit secrets.
 
-- **Overview**: Real-time metrics of raw vs verified data.
-- **Review Table**: Batch approve or reject businesses based on verification scores.
-- **Data Cleaner**: Repair encoding issues (mojibake) in Arabic/Kurdish text.
-- **Task Manager**: Launch automated agent tasks for data enrichment.
-- **Export**: Generate clean JSON files ready for the public directory.
+## Local development
 
-## Language Support
+```bash
+npm install
+npm run dev
+```
 
-- Full RTL support for Arabic and Kurdish.
-- Trilingual data fields (AR, KU, EN).
-- Dir="rtl" implemented on relevant UI components.
+This starts `server.ts` on `http://localhost:3000` with Vite middleware attached.
+
+## Production build (frontend)
+
+```bash
+npm run build
+npm run start
+```
+
+- `npm run build` builds the Vite frontend to `dist/`.
+- `npm run start` launches `server.ts` in production mode and serves `dist/`.
+
+## Worker development/deployment
+
+```bash
+npm run worker:dev
+npm run worker:deploy
+```
+
+Wrangler entrypoint is `worker/agent-runtime.ts` (configured in `wrangler.toml`).
+
+## Validation commands
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
+
+## Notes
+
+- Browser variables must use `VITE_` prefix.
+- Server/Worker secrets must remain non-`VITE_`.
+- Firebase initialization is singleton-based and env-driven (`src/firebase.ts`).

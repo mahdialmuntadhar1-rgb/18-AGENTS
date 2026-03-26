@@ -1,0 +1,5 @@
+# Cloudflare Worker runtime secrets/vars
+APP_ENV=production
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+GOOGLE_PLACES_API_KEY=your-google-places-api-key
