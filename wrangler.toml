@@ -1,4 +1,4 @@
-name = "iraq-compass-agent-runtime"
+name = "tawaw18agent"
 main = "worker/agent-runtime.ts"
 compatibility_date = "2025-01-01"
 workers_dev = true
