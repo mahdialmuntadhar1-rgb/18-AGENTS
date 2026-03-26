@@ -1,82 +1,36 @@
-# Iraq Compass Agent Runtime (V4)
+# Iraq Compass Data Verification Dashboard
 
-Cloudflare Workers runtime for durable data collection using **Cron Triggers + Queues + Durable Objects + Supabase**.
+Internal tool to clean, verify, and approve 70,000+ Iraqi business records.
 
-## Architecture
+## Setup Instructions for Replit
 
-- `scheduled()` (UTC cron) enqueues orchestration messages.
-- Queue consumer claims durable DB-backed tasks via `claim_next_task`.
-- Worker writes run/task/log state to Supabase.
-- Durable Object keeps lightweight checkpoint metadata only.
-- Businesses are persisted idempotently using `source_hash` conflict handling.
+1. **Create a new Replit** using the "React" template.
+2. **Upload all files** from this repository to your Replit.
+3. **Configure Environment Variables**:
+   - Go to the **Secrets** tab in Replit.
+   - Add `VITE_SUPABASE_URL` with your Supabase project URL.
+   - Add `VITE_SUPABASE_ANON_KEY` with your Supabase anon key.
+4. **Install Dependencies**:
+   - Replit should automatically detect `package.json` and install dependencies.
+   - If not, run `npm install` in the Shell.
+5. **Run the App**:
+   - Click the **Run** button at the top.
+   - The dashboard will be available in the Webview.
 
-See `docs/ARCHITECTURE.md` and `docs/DB_SCHEMA.md` for details.
+## Supabase Schema
 
-## Environment and secrets
+Before running the app, ensure you have executed the SQL schema provided in the `Step 1` response in your Supabase SQL Editor.
 
-Use `.dev.vars` for local Wrangler runs (copy from `.dev.vars.example`).
+## Features
 
-Required secrets:
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `ADMIN_SHARED_SECRET`
-- `GOOGLE_PLACES_API_KEY`
+- **Overview**: Real-time metrics of raw vs verified data.
+- **Review Table**: Batch approve or reject businesses based on verification scores.
+- **Data Cleaner**: Repair encoding issues (mojibake) in Arabic/Kurdish text.
+- **Task Manager**: Launch automated agent tasks for data enrichment.
+- **Export**: Generate clean JSON files ready for the public directory.
 
-## Database migrations
+## Language Support
 
-- Canonical fresh install migration: `supabase/migrations/0001_agent_runtime.sql`
-- Forward-only repair migration: `supabase/migrations/0002_v4_schema_patch.sql`
-- Optional bootstrap data: `supabase/seed.sql`
-
-Typical workflow:
-
-```bash
-supabase start
-supabase db reset
-supabase db push
-```
-
-
-## Tooling authentication
-
-Before running Supabase/Wrangler commands, authenticate locally:
-
-```bash
-supabase login
-npx wrangler login
-```
-
-If you use CI-managed tokens, ensure equivalent auth is configured via environment variables before running deploy commands.
-
-## Runtime endpoints
-
-- `GET /api/health` → basic liveness/version/time.
-- `POST /api/admin/orchestrate` → protected by `x-admin-secret`.
-
-## Local validation
-
-```bash
-npm install
-npm run typecheck
-npm run lint
-npm run test
-npx wrangler@latest dev
-curl -sS http://localhost:8787/api/health
-curl -sS "http://localhost:8787/cdn-cgi/handler/scheduled"
-curl -sS -X POST http://localhost:8787/api/admin/orchestrate -H "x-admin-secret: $ADMIN_SHARED_SECRET"
-```
-
-## Realtime for UI
-
-To support the app live feed, ensure `businesses` is in publication:
-
-```sql
-alter publication supabase_realtime add table businesses;
-```
-
-When using Postgres Changes with RLS, your `SELECT` policies determine which rows client subscriptions receive.
-
-## Launch readiness review
-
-Use `docs/FINAL_CHECK_REVIEW.md` as the final reviewer checklist before merging launch-bound changes.
-
+- Full RTL support for Arabic and Kurdish.
+- Trilingual data fields (AR, KU, EN).
+- Dir="rtl" implemented on relevant UI components.

@@ -27,11 +27,11 @@ const Export: React.FC = () => {
   const fetchApproved = async () => {
     setLoading(true);
     try {
-      const result = await businessService.getVerifiedBusinesses({
+      const data = await businessService.getVerifiedBusinesses({
         status: 'approved',
         ...filters
       });
-      setBusinesses(result.data);
+      setBusinesses(data);
     } catch (error) {
       console.error('Error fetching approved:', error);
     } finally {

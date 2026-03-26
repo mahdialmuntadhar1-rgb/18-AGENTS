@@ -1,106 +1,74 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import dotenv from "dotenv";
 import { runGovernor } from "./server/governors/index.js";
-import { supabaseAdmin } from "./server/supabase-admin.js";
-
-dotenv.config();
-
-type GeminiPart = { text: string };
-type GeminiMessage = { role: "user" | "model"; parts: GeminiPart[] };
-
-const PORT = Number(process.env.PORT ?? 3000);
-
-function isAuthorizedAdmin(req: express.Request): boolean {
-  const expected = process.env.ADMIN_SHARED_SECRET;
-  if (!expected) return true;
-  return req.header("x-admin-secret") === expected;
-}
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: "2mb" }));
+  const PORT = 3000;
 
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", time: new Date().toISOString() });
+  app.use(express.json());
+
+  // Mock agent state
+  let agents: any[] = [
+    { name: "Agent-01", governorate: "Baghdad", category: "Restaurants", status: "active", governmentRate: "Rate Level 1", recordsInserted: 3247, lastActivity: "2m ago" },
+    { name: "Agent-02", governorate: "Basra", category: "Cafes", status: "active", governmentRate: "Rate Level 1", recordsInserted: 1892, lastActivity: "5m ago" },
+    { name: "Agent-03", governorate: "Nineveh", category: "Bakeries", status: "idle", governmentRate: "Rate Level 1", recordsInserted: 843, lastActivity: "1h ago" },
+    { name: "Agent-04", governorate: "Erbil", category: "Hotels", status: "active", governmentRate: "Rate Level 1", recordsInserted: 612, lastActivity: "8m ago" },
+    { name: "Agent-05", governorate: "Sulaymaniyah", category: "Gyms", status: "active", governmentRate: "Rate Level 2", recordsInserted: 438, lastActivity: "12m ago" },
+    { name: "Agent-06", governorate: "Kirkuk", category: "Beauty Salons", status: "active", governmentRate: "Rate Level 2", recordsInserted: 1124, lastActivity: "3m ago" },
+    { name: "Agent-07", governorate: "Duhok", category: "Barbershops", status: "idle", governmentRate: "Rate Level 2", recordsInserted: 967, lastActivity: "45m ago" },
+    { name: "Agent-08", governorate: "Anbar", category: "Pharmacies", status: "active", governmentRate: "Rate Level 2", recordsInserted: 756, lastActivity: "6m ago" },
+    { name: "Agent-09", governorate: "Babil", category: "Supermarkets", status: "active", governmentRate: "Rate Level 3", recordsInserted: 521, lastActivity: "9m ago" },
+    { name: "Agent-10", governorate: "Karbala", category: "Electronics", status: "error", governmentRate: "Rate Level 3", recordsInserted: 389, lastActivity: "2h ago" },
+    { name: "Agent-11", governorate: "Wasit", category: "Clothing Stores", status: "active", governmentRate: "Rate Level 3", recordsInserted: 1043, lastActivity: "4m ago" },
+    { name: "Agent-12", governorate: "Dhi Qar", category: "Car Services", status: "idle", governmentRate: "Rate Level 3", recordsInserted: 334, lastActivity: "3h ago" },
+    { name: "Agent-13", governorate: "Maysan", category: "Dentists", status: "active", governmentRate: "Rate Level 4", recordsInserted: 287, lastActivity: "15m ago" },
+    { name: "Agent-14", governorate: "Muthanna", category: "Clinics", status: "active", governmentRate: "Rate Level 4", recordsInserted: 412, lastActivity: "7m ago" },
+    { name: "Agent-15", governorate: "Najaf", category: "Schools", status: "active", governmentRate: "Rate Level 4", recordsInserted: 891, lastActivity: "11m ago" },
+    { name: "Agent-16", governorate: "Qadisiyyah", category: "Co-working Spaces", status: "idle", governmentRate: "Rate Level 5", recordsInserted: 156, lastActivity: "6h ago" },
+    { name: "Agent-17", governorate: "Saladin", category: "Entertainment", status: "active", governmentRate: "Rate Level 5", recordsInserted: 743, lastActivity: "18m ago" },
+    { name: "Agent-18", governorate: "Diyala", category: "Tourism", status: "active", governmentRate: "Rate Level 5", recordsInserted: 512, lastActivity: "22m ago" },
+    { name: "QC Overseer", governorate: "QC Overseer", category: "Quality Control", status: "active", governmentRate: "Supervisory", recordsInserted: 15420, lastActivity: "1m ago" },
+  ];
+
+  // API routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok" });
   });
 
-  app.get("/api/agents", async (_req, res) => {
-    const { data, error } = await supabaseAdmin
-      .from("agents")
-      .select("id,display_name,city,category,status,status_reason,last_run_at,updated_at")
-      .order("id");
-
-    if (error) return res.status(500).json({ error: error.message });
-    return res.json(data ?? []);
+  app.get("/api/agents", (req, res) => {
+    res.json(agents);
   });
 
+  app.post("/api/orchestrator/start", (req, res) => {
+    agents = agents.map(a => ({ ...a, status: "running" }));
+    res.json({ status: "started", agents });
+  });
+
+  app.post("/api/orchestrator/stop", (req, res) => {
+    agents = agents.map(a => ({ ...a, status: "idle" }));
+    res.json({ status: "stopped", agents });
+  });
+
+  // Endpoint to manually trigger a governor
   app.post("/api/agents/:agentName/run", async (req, res) => {
-    if (!isAuthorizedAdmin(req)) return res.status(401).json({ error: "unauthorized" });
-
+    const { agentName } = req.params;
     try {
-      const { agentName } = req.params;
-      void runGovernor(agentName);
-      return res.json({ status: "started", agentName });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to start agent";
-      return res.status(500).json({ error: message });
+      // In a real app, this would be triggered by a cron job or background worker
+      // We run it asynchronously so we don't block the response
+      runGovernor(agentName).catch(console.error);
+      res.json({ status: "started", agentName });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/ai/chat", async (req, res) => {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "Server is missing GEMINI_API_KEY." });
-
-    const { model = "gemini-2.0-flash", systemInstruction, contents, tools } = req.body as {
-      model?: string;
-      systemInstruction?: string;
-      contents?: GeminiMessage[];
-      tools?: unknown[];
-    };
-
-    if (!Array.isArray(contents) || contents.length === 0) {
-      return res.status(400).json({ error: "contents is required and must be a non-empty array." });
-    }
-
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents,
-            ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
-            ...(Array.isArray(tools) && tools.length > 0 ? { tools } : {}),
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        return res.status(response.status).json({ error: errorBody || "Gemini request failed." });
-      }
-
-      const data = (await response.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-      };
-
-      const text =
-        data.candidates?.[0]?.content?.parts
-          ?.map((part) => part.text)
-          .filter((part): part is string => Boolean(part))
-          .join("\n") ?? "";
-
-      return res.json({ text, raw: data });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unexpected server error.";
-      return res.status(500).json({ error: message });
-    }
-  });
-
+  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
     app.use(vite.middlewares);
   } else {
     app.use(express.static("dist"));
@@ -111,4 +79,4 @@ async function startServer() {
   });
 }
 
-void startServer();
+startServer();
