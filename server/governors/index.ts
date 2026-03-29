@@ -47,14 +47,27 @@ agentConfigs.forEach((config) => {
   }
 });
 
-export async function runGovernor(agentName: string) {
+export function getGovernorDefaults(agentName: string) {
+  if (agentName === "Agent-01") {
+    return { city: "Baghdad", category: "restaurants", governmentRate: "Rate Level 1" };
+  }
+
+  const config = agentConfigs.find((item) => item.id === agentName);
+  return {
+    city: config?.name || "Baghdad",
+    category: config?.category || "restaurants",
+    governmentRate: config?.rate || "Rate Level 1",
+  };
+}
+
+export async function runGovernor(agentName: string, taskOverride?: any) {
   const governor = governors[agentName];
   if (!governor) {
     throw new Error(`Governor ${agentName} not found`);
   }
 
   console.log(`Starting run for ${agentName}...`);
-  await governor.run();
+  await governor.run(taskOverride);
   console.log(`Finished run for ${agentName}`);
 }
 

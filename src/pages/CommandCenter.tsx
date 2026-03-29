@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { Play, Square, Terminal, RefreshCw, Bot, AlertTriangle, ListTodo, ActivitySquare, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-type LogEntry = { id: string; message: string; type: string; created_at: string };
-type TaskEntry = { id: string; type: string; instruction: string; status: string; created_at: string };
+type LogEntry = { id: string; agent_name: string; action: string; details: string | null; created_at: string };
+type TaskEntry = { id: string; task_type: string; instruction: string; status: string; created_at: string };
 
 export default function CommandCenter() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -31,7 +31,7 @@ export default function CommandCenter() {
       supabase.from('agents').select('*', { count: 'exact', head: true }).eq('status', 'running'),
       supabase.from('agents').select('*', { count: 'exact', head: true }),
       supabase.from('agent_tasks').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('agent_logs').select('*', { count: 'exact', head: true }).eq('type', 'error').gte('created_at', twentyFourHoursAgo),
+      supabase.from('agent_logs').select('*', { count: 'exact', head: true }).eq('action', 'error').gte('created_at', twentyFourHoursAgo),
       supabase.from('agent_tasks').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
 
@@ -72,11 +72,14 @@ export default function CommandCenter() {
     if (!instruction.trim()) return;
     setLoading(true);
     setMessage(null);
+    const now = new Date().toISOString();
     const { error } = await supabase.from('agent_tasks').insert({
-      type: 'manual_command',
+      task_name: `manual_command_${Date.now()}`,
+      task_type: 'manual_command',
       instruction: instruction.trim(),
       status: 'pending',
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     });
     await refreshRuntimeState();
     if (error) {
@@ -209,7 +212,7 @@ export default function CommandCenter() {
             <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Latest Run Activity</p>
             {latestRun ? (
               <div className="text-sm text-gray-700 space-y-1">
-                <p className="font-semibold">{latestRun.type}</p>
+                <p className="font-semibold">{latestRun.task_type}</p>
                 <p className="text-gray-600">{latestRun.instruction}</p>
                 <p className="text-xs text-gray-500">Status: {latestRun.status}</p>
                 <p className="text-xs text-gray-500">{formatTimestamp(latestRun.created_at)}</p>
@@ -233,8 +236,8 @@ export default function CommandCenter() {
           <ul className="space-y-2 text-sm">
             {logs.slice(0, 8).map((log) => (
               <li key={log.id} className="border border-gray-100 rounded-lg px-3 py-2 text-gray-700">
-                <span className="font-bold uppercase text-xs text-gray-500 mr-2">[{log.type}]</span>
-                {log.message}
+                <span className="font-bold uppercase text-xs text-gray-500 mr-2">[{log.action}]</span>
+                {log.agent_name}: {log.details ?? '(no details)'}
                 <span className="block text-xs text-gray-400 mt-1">{formatTimestamp(log.created_at)}</span>
               </li>
             ))}

@@ -6,12 +6,12 @@ export abstract class BaseGovernor {
   abstract agentName: string;
   abstract governmentRate: string;
 
-  async run() {
+  async run(taskOverride?: { id?: string | number | null; city?: string; category?: string; government_rate?: string }) {
     await this.setStatus("running");
     try {
-      const task = await this.claimTask();
+      const task = taskOverride || (await this.claimTask());
 
-      if (!task) {
+      if (!task || (!task.city && !taskOverride)) {
         console.log(`${this.agentName}: No pending tasks found. Entering idle mode.`);
         await this.setStatus("idle");
         return;
@@ -28,7 +28,7 @@ export abstract class BaseGovernor {
         await this.log("info", "Run completed with no collected records.");
       }
 
-      await this.completeTask(task.id);
+      if (!taskOverride) await this.completeTask(task.id);
     } catch (err) {
       console.error(`Error in ${this.agentName}:`, err);
       await this.log("error", `Run failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -70,7 +70,7 @@ export abstract class BaseGovernor {
         verification_status: "pending",
       };
 
-      const { error } = await this.supabase.from("businesses").upsert(businessData, { onConflict: "name,city" });
+      const { error } = await this.supabase.from("businesses").upsert(businessData, { onConflict: "name,address,city" });
 
       if (error) {
         console.error(`Error inserting ${item.name}:`, error.message);
@@ -95,9 +95,9 @@ export abstract class BaseGovernor {
 
   async log(type: "info" | "success" | "warning" | "error", message: string) {
     await this.supabase.from("agent_logs").insert({
-      agent_id: this.agentName,
-      type,
-      message,
+      agent_name: this.agentName,
+      action: type,
+      details: message,
       created_at: new Date().toISOString(),
     });
   }

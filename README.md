@@ -33,3 +33,13 @@ npm run build
 - Manual agent runs (`/api/agents/:agentName/run`) create and update persisted run-task records.
 - Pages still marked as placeholders (for example `/overview`) are explicitly labeled as non-operational and are not part of production runtime control flow.
 - No Firebase runtime paths are retained.
+
+
+## First real scraping test contract
+
+- **Canonical first real agent:** `Agent-01` (`RestaurantsGovernor`).
+- **Real connector:** Google Places Text Search API.
+- **Required connector secret:** `GOOGLE_PLACES_API_KEY` (server-side).
+- **Runtime output table:** `businesses` (rows written by `BaseGovernor.store`).
+- **Runtime control tables:** `agents`, `agent_tasks`, `agent_logs`.
+- **Schema source of truth:** `supabase_schema.sql`.

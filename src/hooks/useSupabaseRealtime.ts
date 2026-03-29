@@ -22,7 +22,7 @@ export function useSupabaseRealtime() {
         { event: 'INSERT', schema: 'public', table: 'agent_logs' },
         (payload) => {
           const log = payload.new;
-          console.info(`[${String(log.agent_id).toUpperCase()}] ${log.message}`);
+          console.info(`[${String(log.agent_name).toUpperCase()}] ${log.details}`);
         }
       )
       .subscribe();

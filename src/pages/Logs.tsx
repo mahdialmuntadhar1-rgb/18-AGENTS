@@ -5,9 +5,9 @@ import { supabase } from '../lib/supabase';
 type RuntimeLog = {
   id: string;
   created_at: string;
-  agent_id: string;
-  message: string;
-  type: 'success' | 'warning' | 'error' | 'info';
+  agent_name: string;
+  action: string;
+  details: string | null;
 };
 
 const Logs: React.FC = () => {
@@ -29,7 +29,7 @@ const Logs: React.FC = () => {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return logs;
-    return logs.filter((log) => `${log.agent_id} ${log.message} ${log.type}`.toLowerCase().includes(q));
+    return logs.filter((log) => `${log.agent_name} ${log.action} ${log.details ?? ''}`.toLowerCase().includes(q));
   }, [logs, query]);
 
   return (
@@ -69,21 +69,21 @@ const Logs: React.FC = () => {
           {filtered.map((log) => (
             <div key={log.id} className="flex items-start gap-4 group">
               <span className="text-white/20 whitespace-nowrap">[{new Date(log.created_at).toLocaleTimeString()}]</span>
-              <span className="font-bold whitespace-nowrap min-w-[120px] text-[#C9A84C]">{log.agent_id}</span>
+              <span className="font-bold whitespace-nowrap min-w-[120px] text-[#C9A84C]">{log.agent_name}</span>
               <span
                 className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${
-                  log.type === 'success'
+                  log.action === 'success'
                     ? 'bg-emerald-500/10 text-emerald-400'
-                    : log.type === 'warning'
+                    : log.action === 'warning'
                       ? 'bg-amber-500/10 text-amber-400'
-                      : log.type === 'error'
+                      : log.action === 'error'
                         ? 'bg-rose-500/10 text-rose-400'
                         : 'bg-blue-500/10 text-blue-400'
                 }`}
               >
-                {log.type}
+                {log.action}
               </span>
-              <span className="text-white/60 group-hover:text-white transition-colors">{log.message}</span>
+              <span className="text-white/60 group-hover:text-white transition-colors">{log.details ?? "(no details)"}</span>
             </div>
           ))}
           <div className="flex items-center gap-2 text-white/20 pt-4">

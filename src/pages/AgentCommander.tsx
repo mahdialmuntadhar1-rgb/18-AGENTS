@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 
 interface AgentTask {
   id: string;
-  type: string;
+  task_type: string;
   instruction: string;
   status: string;
   created_at: string;
@@ -25,7 +25,8 @@ export default function AgentCommander() {
 
   const queueTask = async () => {
     await supabase.from('agent_tasks').insert({
-      type: 'finder',
+      task_name: `finder_${Date.now()}`,
+      task_type: 'finder',
       instruction,
       status: 'pending',
       created_at: new Date().toISOString(),
@@ -45,7 +46,7 @@ export default function AgentCommander() {
       <table className="w-full text-left text-sm">
         <thead><tr><th>Type</th><th>Instruction</th><th>Status</th></tr></thead>
         <tbody>
-          {tasks.map((task) => <tr key={task.id} className="border-t"><td>{task.type}</td><td>{task.instruction}</td><td>{task.status}</td></tr>)}
+          {tasks.map((task) => <tr key={task.id} className="border-t"><td>{task.task_type}</td><td>{task.instruction}</td><td>{task.status}</td></tr>)}
         </tbody>
       </table>
     </div>

@@ -1,6 +1,6 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import { runGovernor } from './server/governors/index.js';
+import { runGovernor, getGovernorDefaults } from './server/governors/index.js';
 import { supabaseAdmin } from './server/supabase-admin.js';
 
 async function startServer() {
@@ -10,13 +10,14 @@ async function startServer() {
   app.use(express.json());
 
   app.get('/api/health', async (_req, res) => {
-    const [agentsCheck, tasksCheck, logsCheck] = await Promise.all([
+    const [agentsCheck, tasksCheck, logsCheck, businessesCheck] = await Promise.all([
       supabaseAdmin.from('agents').select('id', { count: 'exact', head: true }),
       supabaseAdmin.from('agent_tasks').select('id', { count: 'exact', head: true }),
       supabaseAdmin.from('agent_logs').select('id', { count: 'exact', head: true }),
+      supabaseAdmin.from('businesses').select('id', { count: 'exact', head: true }),
     ]);
 
-    const errors = [agentsCheck.error, tasksCheck.error, logsCheck.error].filter(Boolean);
+    const errors = [agentsCheck.error, tasksCheck.error, logsCheck.error, businessesCheck.error].filter(Boolean);
     res.json({
       status: errors.length ? 'degraded' : 'ok',
       persistence: 'supabase',
@@ -24,6 +25,7 @@ async function startServer() {
         agents: agentsCheck.error ? 'unreachable' : 'ok',
         agent_tasks: tasksCheck.error ? 'unreachable' : 'ok',
         agent_logs: logsCheck.error ? 'unreachable' : 'ok',
+        businesses: businessesCheck.error ? 'unreachable' : 'ok',
       },
       detail: errors.map((e) => e?.message).join('; ') || null,
     });
@@ -38,29 +40,36 @@ async function startServer() {
   app.post('/api/orchestrator/start', async (_req, res) => {
     const { data: agents, error: fetchError } = await supabaseAdmin
       .from('agents')
-      .select('agent_name')
+      .select('agent_name, category, city, government_rate')
       .order('agent_name');
 
     if (fetchError) return res.status(500).json({ error: fetchError.message });
 
-    const agentNames = (agents ?? []).map((row) => row.agent_name).filter(Boolean);
+    const agentRows = (agents ?? []).filter((row) => row.agent_name);
 
     const [{ error: taskError }, { error: statusError }, { error: logError }] = await Promise.all([
-      agentNames.length
+      agentRows.length
         ? supabaseAdmin.from('agent_tasks').insert(
-            agentNames.map((agentName) => ({
-              type: 'orchestrator_run',
-              instruction: `Queued orchestrator run for ${agentName}`,
+            agentRows.map((agent) => ({
+              task_name: `orchestrator_${agent.agent_name}`,
+              task_type: 'orchestrator_run',
+              instruction: `Queued orchestrator run for ${agent.agent_name}`,
+              assigned_to: agent.agent_name,
+              agent_name: agent.agent_name,
+              category: agent.category ?? 'restaurants',
+              city: agent.city ?? 'Baghdad',
+              government_rate: agent.government_rate ?? 'Rate Level 1',
               status: 'pending',
               created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
             })),
           )
         : Promise.resolve({ error: null }),
-      supabaseAdmin.from('agents').update({ status: 'running' }).in('agent_name', agentNames),
+      supabaseAdmin.from('agents').update({ status: 'running' }).in('agent_name', agentRows.map((r) => r.agent_name)),
       supabaseAdmin.from('agent_logs').insert({
-        agent_id: 'system',
-        type: 'info',
-        message: `Orchestrator queued ${agentNames.length} agent run(s)`,
+        agent_name: 'system',
+        action: 'orchestrator_start',
+        details: `Queued ${agentRows.length} agent run(s)`,
         created_at: new Date().toISOString(),
       }),
     ]);
@@ -69,7 +78,7 @@ async function startServer() {
     if (error) return res.status(500).json({ error: error.message });
 
     const { data: updatedAgents } = await supabaseAdmin.from('agents').select('*').order('agent_name');
-    res.json({ status: 'queued', queuedAgents: agentNames.length, agents: updatedAgents ?? [] });
+    res.json({ status: 'queued', queuedAgents: agentRows.length, agents: updatedAgents ?? [] });
   });
 
   app.post('/api/orchestrator/stop', async (_req, res) => {
@@ -77,12 +86,12 @@ async function startServer() {
       supabaseAdmin.from('agents').update({ status: 'idle' }).neq('agent_name', ''),
       supabaseAdmin
         .from('agent_tasks')
-        .update({ status: 'failed' })
+        .update({ status: 'failed', updated_at: new Date().toISOString() })
         .in('status', ['pending', 'running']),
       supabaseAdmin.from('agent_logs').insert({
-        agent_id: 'system',
-        type: 'warning',
-        message: 'Orchestrator stop requested; pending/running tasks marked failed',
+        agent_name: 'system',
+        action: 'orchestrator_stop',
+        details: 'Orchestrator stop requested; pending/running tasks marked failed',
         created_at: new Date().toISOString(),
       }),
     ]);
@@ -96,41 +105,65 @@ async function startServer() {
 
   app.post('/api/agents/:agentName/run', async (req, res) => {
     const { agentName } = req.params;
+    const defaults = getGovernorDefaults(agentName);
 
     const { data: task, error: insertTaskError } = await supabaseAdmin
       .from('agent_tasks')
       .insert({
-        type: 'manual_run',
+        task_name: `manual_${agentName}_${Date.now()}`,
+        task_type: 'manual_run',
         instruction: `Manual governor run requested for ${agentName}`,
+        assigned_to: agentName,
+        agent_name: agentName,
+        category: defaults.category,
+        city: defaults.city,
+        government_rate: defaults.governmentRate,
         status: 'pending',
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
-      .select('id')
+      .select('id, category, city, government_rate')
       .single();
 
     if (insertTaskError) return res.status(500).json({ error: insertTaskError.message });
 
-    runGovernor(agentName)
+    runGovernor(agentName, {
+      id: task.id,
+      city: task.city,
+      category: task.category,
+      government_rate: task.government_rate,
+    })
       .then(async () => {
-        await supabaseAdmin.from('agent_tasks').update({ status: 'completed' }).eq('id', task.id);
+        await supabaseAdmin
+          .from('agent_tasks')
+          .update({ status: 'completed', updated_at: new Date().toISOString() })
+          .eq('id', task.id);
         await supabaseAdmin.from('agent_logs').insert({
-          agent_id: agentName,
-          type: 'success',
-          message: `Manual governor run completed for ${agentName}`,
+          agent_name: agentName,
+          action: 'manual_run_completed',
+          record_id: task.id,
+          details: `Manual governor run completed for ${agentName}`,
           created_at: new Date().toISOString(),
         });
       })
       .catch(async (error) => {
-        await supabaseAdmin.from('agent_tasks').update({ status: 'failed' }).eq('id', task.id);
+        await supabaseAdmin
+          .from('agent_tasks')
+          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .eq('id', task.id);
         await supabaseAdmin.from('agent_logs').insert({
-          agent_id: agentName,
-          type: 'error',
-          message: `Manual governor run failed for ${agentName}: ${error.message}`,
+          agent_name: agentName,
+          action: 'manual_run_failed',
+          record_id: task.id,
+          details: `Manual governor run failed for ${agentName}: ${error.message}`,
           created_at: new Date().toISOString(),
         });
       });
 
-    const { error: updateTaskError } = await supabaseAdmin.from('agent_tasks').update({ status: 'running' }).eq('id', task.id);
+    const { error: updateTaskError } = await supabaseAdmin
+      .from('agent_tasks')
+      .update({ status: 'running', updated_at: new Date().toISOString() })
+      .eq('id', task.id);
     if (updateTaskError) return res.status(500).json({ error: updateTaskError.message });
 
     res.json({ status: 'running', agentName, taskId: task.id });

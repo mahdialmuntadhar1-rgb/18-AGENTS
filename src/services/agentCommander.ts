@@ -28,9 +28,9 @@ export class AgentCommander {
     const { data, error } = await supabase
       .from('agent_logs')
       .insert({
-        agent_id: `${governorate.toLowerCase()}_agent`,
-        message: `Agent started processing for ${governorate}`,
-        type: 'info',
+        agent_name: `${governorate.toLowerCase()}_agent`,
+        details: `Agent started processing for ${governorate}`,
+        action: 'info',
         governorate
       });
 
@@ -57,9 +57,9 @@ export class AgentCommander {
 
     if (needsReview) {
       await supabase.from('agent_logs').insert({
-        agent_id: 'qc_overseer',
-        message: `Record ${recordId} flagged for visual review (Confidence: ${(confidenceScore * 100).toFixed(1)}%)`,
-        type: 'warning'
+        agent_name: 'qc_overseer',
+        details: `Record ${recordId} flagged for visual review (Confidence: ${(confidenceScore * 100).toFixed(1)}%)`,
+        action: 'warning'
       });
     }
 

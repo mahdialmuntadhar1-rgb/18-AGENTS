@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 
 type RuntimeTask = {
   id: string;
-  type: string;
+  task_type: string;
   instruction: string;
   status: string;
   created_at: string;
@@ -26,7 +26,7 @@ export default function PilotRuns() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return runs;
-    return runs.filter((run) => `${run.type} ${run.instruction} ${run.status}`.toLowerCase().includes(q));
+    return runs.filter((run) => `${run.task_type} ${run.instruction} ${run.status}`.toLowerCase().includes(q));
   }, [runs, search]);
 
   return (
@@ -71,7 +71,7 @@ export default function PilotRuns() {
             <tbody className="divide-y divide-slate-800/50">
               {filtered.map((run) => (
                 <tr key={run.id} className="hover:bg-emerald-500/5 transition-colors group">
-                  <td className="px-6 py-4 text-xs font-black text-slate-100 uppercase tracking-wide">{run.type}</td>
+                  <td className="px-6 py-4 text-xs font-black text-slate-100 uppercase tracking-wide">{run.task_type}</td>
                   <td className="px-6 py-4 text-xs text-slate-300">{run.instruction}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-slate-400">
