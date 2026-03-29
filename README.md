@@ -1,36 +1,65 @@
-# Iraq Compass Data Verification Dashboard
-
-Internal tool to clean, verify, and approve 70,000+ Iraqi business records.
-
-## Setup Instructions for Replit
-
-1. **Create a new Replit** using the "React" template.
-2. **Upload all files** from this repository to your Replit.
-3. **Configure Environment Variables**:
-   - Go to the **Secrets** tab in Replit.
-   - Add `VITE_SUPABASE_URL` with your Supabase project URL.
-   - Add `VITE_SUPABASE_ANON_KEY` with your Supabase anon key.
-4. **Install Dependencies**:
-   - Replit should automatically detect `package.json` and install dependencies.
-   - If not, run `npm install` in the Shell.
-5. **Run the App**:
-   - Click the **Run** button at the top.
-   - The dashboard will be available in the Webview.
-
-## Supabase Schema
-
-Before running the app, ensure you have executed the SQL schema provided in the `Step 1` response in your Supabase SQL Editor.
+# Iraq Business Data Agents – 18 City Scrapers + Quality Control
 
 ## Features
+- 18 independent agents, one per Iraqi city
+- Real data from Google Places API + Gemini AI enrichment
+- Quality control manager scores each business (0-100)
+- Dashboard to run any agent individually or all 18 at once
+- Live WebSocket logs
 
-- **Overview**: Real-time metrics of raw vs verified data.
-- **Review Table**: Batch approve or reject businesses based on verification scores.
-- **Data Cleaner**: Repair encoding issues (mojibake) in Arabic/Kurdish text.
-- **Task Manager**: Launch automated agent tasks for data enrichment.
-- **Export**: Generate clean JSON files ready for the public directory.
+## Quick Start
 
-## Language Support
+### 1. Prerequisites
+- Node.js 18+
+- Redis (or use Docker)
+- Supabase account (free tier)
+- Google Places API key
+- Gemini API key
 
-- Full RTL support for Arabic and Kurdish.
-- Trilingual data fields (AR, KU, EN).
-- Dir="rtl" implemented on relevant UI components.
+### 2. Setup Backend
+```bash
+cd server
+cp .env.example .env
+# Edit .env with your keys
+npm install
+npm run dev
+```
+
+### 3. Setup Frontend
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+### 4. Database
+Run the SQL migration in Supabase SQL editor.
+
+### 5. Run Redis (if not already)
+```bash
+docker-compose up -d redis
+```
+
+## API Endpoints
+- `GET /api/agents/status` – List all agent jobs
+- `POST /api/agents/start` – Start one city agent
+- `POST /api/agents/start-all` – Start all 18 agents
+- `GET /api/agents/logs/:jobId` – Fetch logs for a job
+
+## WebSocket
+Connect to `ws://localhost:3001` to receive real-time agent logs.
+
+## Agent Workflow
+1. City agent queries Google Places for businesses in that city.
+2. For each result, calls Gemini to extract Arabic name & social media.
+3. Raw data saved to `raw_businesses`.
+4. Quality manager scores each record (phone=30, social=20, maps=20, etc.).
+5. Verified businesses saved to `verified_businesses` with status (`approved`/`needs_review`/`rejected`).
+
+## Cost Estimates
+- Google Places: ~$0.017 per search (50 results) → ~$0.30 per city
+- Gemini: free tier (60 requests/min)
+- Total for full 18-city run: ~$5.40
+
+## License
+MIT
