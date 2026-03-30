@@ -51,3 +51,27 @@ $$ LANGUAGE plpgsql;
 -- Real-time Replication (Enable for businesses and agent_logs)
 ALTER PUBLICATION supabase_realtime ADD TABLE businesses;
 ALTER PUBLICATION supabase_realtime ADD TABLE agent_logs;
+
+-- Multi-source verification extension
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS name_ar TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS name_ku TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subcategory TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'Iraq';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS website TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS facebook_url TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS instagram_url TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS google_maps_url TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS source_evidence JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS verification_strength TEXT DEFAULT 'weak';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS validation_status TEXT DEFAULT 'draft';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS hours TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS image_urls TEXT[] DEFAULT '{}';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS collected_by_agent TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS matched_sources TEXT[] DEFAULT '{}';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS raw_source_payload_ref TEXT;

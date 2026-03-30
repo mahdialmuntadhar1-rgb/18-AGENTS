@@ -1,37 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Terminal, Play, Square, CheckCircle2, AlertCircle, 
-  Activity, Database, ShieldCheck, FileText, 
-  Search, Filter, Zap, Bot, Info, CheckCircle,
-  Wand2, Compass, Globe, Trash2, RefreshCw,
-  LayoutDashboard, Terminal as TerminalIcon,
-  CheckSquare, AlertTriangle, Download, MapPin
-} from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { handleSupabaseError, OperationType } from '../lib/supabaseUtils';
-import { GoogleGenAI } from "@google/genai";
+import React, { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, Filter, Globe, MapPin, Play, Search } from 'lucide-react';
 
-const CITIES = [
-  { id: 'sulaymaniyah', en: 'Sulaymaniyah City', ar: 'مدينة السليمانية', count: 5000 },
-  { id: 'baghdad', en: 'Baghdad City', ar: 'مدينة بغداد', count: 16200 },
-  { id: 'karbala', en: 'Karbala City', ar: 'مدينة كربلاء', count: 3900 },
-  { id: 'erbil', en: 'Erbil City', ar: 'مدينة أربيل', count: 3300 },
-  { id: 'basra', en: 'Basra City', ar: 'مدينة البصرة', count: 7000 },
-  { id: 'najaf', en: 'Najaf City', ar: 'مدينة النجف', count: 2900 },
-  { id: 'mosul', en: 'Mosul City', ar: 'مدينة الموصل', count: 4400 },
-  { id: 'kirkuk', en: 'Kirkuk City', ar: 'مدينة كركوك', count: 1800 },
-  { id: 'diyala', en: 'Diyala City', ar: 'مدينة ديالى', count: 3000 },
-  { id: 'anbar', en: 'Anbar City', ar: 'مدينة الأنبار', count: 1800 },
-  { id: 'dohuk', en: 'Dohuk City', ar: 'مدينة دهوك', count: 1600 },
-  { id: 'wasit', en: 'Wasit City', ar: 'مدينة واسط', count: 1500 },
-  { id: 'muthanna', en: 'Muthanna City', ar: 'مدينة المثنى', count: 1000 },
-  { id: 'qadisiyah', en: 'Qadisiyah City', ar: 'مدينة القادسية', count: 1500 },
-  { id: 'maysan', en: 'Maysan City', ar: 'مدينة ميسان', count: 1400 },
-  { id: 'thi_qar', en: 'Thi-Qar City', ar: 'مدينة ذي قار', count: 3200 },
-  { id: 'babil', en: 'Babil City', ar: 'مدينة بابل', count: 1600 },
-  { id: 'saladin', en: 'Saladin City', ar: 'مدينة صلاح الدين', count: 1750 },
-];
+type SourceName = 'gemini' | 'osm' | 'web' | 'facebook' | 'instagram' | 'google_places';
+type ValidationStatus = 'draft' | 'single_source' | 'multi_source_verified' | 'needs_review' | 'approved';
 
 const AGENTS = [
   { id: 'cleaner', icon: <Wand2 size={20} />, name: 'Text Cleaner', desc: 'Repairs Arabic/Kurdish text', tasks: 1842, success: 98 },
@@ -42,19 +13,31 @@ const AGENTS = [
   { id: 'exporter', icon: <Download size={20} />, name: 'Export Agent', desc: 'Exports to Supabase', tasks: 24, success: 100 },
 ];
 
-interface LogEntry {
-  id: string;
-  time: string;
-  message: string;
-  type: 'info' | 'ok' | 'warn' | 'agent';
+interface BusinessRecord {
+  id?: string;
+  name: string;
+  city?: string;
+  category?: string;
+  phone?: string;
+  address?: string;
+  website?: string;
+  facebook_url?: string;
+  instagram_url?: string;
+  confidence_score: number;
+  verification_strength: 'weak' | 'medium' | 'strong';
+  validation_status: ValidationStatus;
+  matched_sources: SourceName[];
+  source_evidence: Array<{ source: SourceName; notes?: string; sourceUrl?: string }>;
 }
 
-import { useAuth } from '../AuthContext';
+const SOURCE_ORDER: SourceName[] = ['gemini', 'osm', 'web', 'facebook', 'instagram', 'google_places'];
 
 export default function CommandCenter() {
-  const { user } = useAuth();
-  const [selectedCities, setSelectedCities] = useState<Set<string>>(new Set(['sulaymaniyah']));
-  const [selectedTask, setSelectedTask] = useState('social');
+  const [sources, setSources] = useState<SourceInfo[]>([]);
+  const [selectedSources, setSelectedSources] = useState<Set<SourceName>>(new Set(['gemini', 'osm', 'web']));
+  const [query, setQuery] = useState('restaurants in Baghdad');
+  const [city, setCity] = useState('Baghdad');
+  const [category, setCategory] = useState('restaurants');
   const [isRunning, setIsRunning] = useState(false);
   const [instruction, setInstruction] = useState('Search for Instagram and Facebook pages for each business in selected cities. Add found URLs to the directory list.');
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -115,28 +98,13 @@ export default function CommandCenter() {
     };
   }, [user]);
 
-  // Listen for task progress
-  useEffect(() => {
-    if (!currentTaskId || !user) return;
+  const [businesses, setBusinesses] = useState<BusinessRecord[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
-    const channel = supabase
-      .channel(`agent_task_${currentTaskId}`)
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'agent_tasks',
-        filter: `id=eq.${currentTaskId}`
-      }, (payload) => {
-        if (payload.new.status === 'completed' || payload.new.status === 'stopped') {
-          setIsRunning(false);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentTaskId, user]);
+  const enabledSourceArray = useMemo(() => SOURCE_ORDER.filter(s => selectedSources.has(s)), [selectedSources]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -164,351 +132,140 @@ export default function CommandCenter() {
     setSelectedCities(next);
   };
 
-  const selectAll = () => {
-    if (isRunning) return;
-    setSelectedCities(new Set(CITIES.map(c => c.id)));
+  const loadBusinesses = async (targetPage = page) => {
+    const params = new URLSearchParams({ page: String(targetPage), pageSize: '8' });
+    if (sourceFilter !== 'all') params.set('source', sourceFilter);
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+
+    const res = await fetch(`/api/businesses?${params.toString()}`);
+    const data = await res.json();
+    setBusinesses(data.data || []);
+    setPage(data.page || targetPage);
+    setTotalPages(data.totalPages || 1);
   };
 
-  const clearAll = () => {
-    if (isRunning) return;
-    setSelectedCities(new Set());
-  };
+  useEffect(() => {
+    loadBusinesses(1);
+  }, [sourceFilter, statusFilter]);
 
-  const launchTasks = async () => {
-    if (selectedCities.size === 0) {
-      addLog('warn', 'No cities selected. Tick at least one city.');
-      return;
-    }
-    if (!selectedTask) {
-      addLog('warn', 'No task selected.');
-      return;
-    }
-
+  const runDiscovery = async () => {
     setIsRunning(true);
-    setDoneCount(0);
-    
-    const cities = Array.from(selectedCities) as string[];
-    const initialProgress: Record<string, number> = {};
-    cities.forEach((id: string) => (initialProgress as any)[id] = 0);
-    setCityProgress(initialProgress);
-
+    setRunLogs([]);
     try {
-      const { data: taskData, error: taskError } = await supabase.from('agent_tasks').insert({
-        type: selectedTask,
-        instruction,
-        cities,
-        status: 'running',
-        progress: 0,
-        created_at: new Date().toISOString()
-      }).select().single();
-
-      if (taskError) throw taskError;
-      setCurrentTaskId(taskData.id);
-
-      await addLog('info', `▶ Task launched: "${instruction}"`);
-      await addLog('info', `Cities: ${cities.map(id => CITIES.find(c => c.id === id)?.en).join(', ')}`);
-      await addLog('agent', `${selectedTask.toUpperCase()} agent activated`);
-
-      // Simulation logic (in a real app, a backend function would handle this)
-      const messages: Record<string, ((c: string) => string)[]> = {
-        social: [
-          (c) => `🔍 Searching Instagram for businesses in ${c}…`,
-          (c) => `📘 Scanning Facebook pages for ${c}…`,
-          (c) => `✅ Found ${Math.floor(Math.random() * 120 + 30)} social profiles in ${c}`,
-          (c) => `💾 Writing Instagram URLs to directory for ${c}`,
-          (c) => `💾 Writing Facebook URLs to directory for ${c}`,
-          (c) => `✔ ${c} — social enrichment complete`,
-        ],
-        text: [(c) => `Repairing Arabic text in ${c}…`, (c) => `Fixed encoding in ${c}`],
-        enrich: [(c) => `Filling phones/coords in ${c}…`, (c) => `Enrichment done for ${c}`],
-        qc: [(c) => `Running QC on ${c}…`, (c) => `QC complete for ${c}`],
-        export: [(c) => `Exporting ${c} to Supabase…`, (c) => `Export done for ${c}`],
-      };
-
-      let interval = setInterval(async () => {
-        const currentCities = [...selectedCities] as string[];
-        const cityId = currentCities[Math.floor(Math.random() * currentCities.length)];
-        const cityName = (CITIES.find(c => c.id === cityId)?.en || cityId) as string;
-        const msgsForTask = ((messages as any)[selectedTask] || messages.social) as any[];
-        const msgFn = msgsForTask[Math.floor(Math.random() * msgsForTask.length)] as (c: string) => string;
-        
-        await addLog('ok', msgFn(cityName));
-
-        setCityProgress((prev: Record<string, number>) => {
-          const next = { ...prev } as any;
-          let allDone = true;
-          let completedCount = 0;
-
-          currentCities.forEach((id: string) => {
-            if (next[id] < 100) {
-              next[id] = Math.min(100, next[id] + Math.random() * 15 + 5);
-              if (next[id] < 100) allDone = false;
-              else {
-                addLog('ok', `✔ ${CITIES.find(c => c.id === id)?.en} — task complete`);
-              }
-            }
-            if (next[id] >= 100) completedCount++;
-          });
-
-          setDoneCount(completedCount);
-
-          if (allDone) {
-            clearInterval(interval);
-            setIsRunning(false);
-            supabase.from('agent_tasks').update({ status: 'completed', progress: 100 }).eq('id', taskData.id);
-            addLog('info', `🏁 All tasks complete · ${currentCities.length} cities processed`);
-          }
-          return next;
-        });
-      }, 1500);
-
-    } catch (error) {
-      console.error("Error launching task:", error);
+      const res = await fetch('/api/discovery/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, city, category, sources: enabledSourceArray, limit: 20 })
+      });
+      const data = await res.json();
+      setRunLogs((data.logs || []).map((l: any) => `[${l.step}${l.source ? `:${l.source}` : ''}] ${l.message}`));
+      await loadBusinesses(1);
+    } finally {
       setIsRunning(false);
     }
   };
 
-  const stopAll = async () => {
-    if (currentTaskId) {
-      await supabase.from('agent_tasks').update({ status: 'stopped' }).eq('id', currentTaskId);
-    }
-    setIsRunning(false);
-    addLog('warn', '■ All agents stopped by user');
+  const toggleSource = (source: SourceName) => {
+    setSelectedSources(prev => {
+      const next = new Set(prev);
+      if (next.has(source)) next.delete(source);
+      else next.add(source);
+      return next;
+    });
   };
 
   return (
-    <div className="min-h-screen text-[#e2d9c8] font-mono p-4 md:p-8">
-      <div className="max-w-[1600px] mx-auto space-y-8">
-        
-        {/* Header */}
-        <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-6 border-b border-gold/20">
-          <div>
-            <h1 className="text-2xl font-bold text-gold tracking-wider flex items-center gap-3">
-              <Zap className="text-gold animate-pulse" size={28} />
-              AGENT COMMAND CENTER
-            </h1>
-            <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest">
-              AI Operations Cockpit · 18 Cities · <span className="text-gold">74,049</span> records
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-[10px] text-slate-500 font-mono">
-              Server · {serverTime}
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] text-green-400 font-bold uppercase tracking-widest">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-              Live
-            </div>
-          </div>
-        </header>
+    <div className="p-6 space-y-6">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gold">Multi-Source Iraq Discovery</h1>
+          <p className="text-xs text-slate-400">Gemini → OSM → Web → Facebook → Instagram with merge/verification.</p>
+        </div>
+      </header>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Running', value: isRunning ? ([...selectedCities] as string[]).filter((id: string) => ((cityProgress as any)[id] || 0) < 100).length : 0, color: 'text-gold' },
-            { label: 'Queued', value: isRunning ? ([...selectedCities] as string[]).filter((id: string) => ((cityProgress as any)[id] || 0) === 0).length : 0, color: 'text-gold' },
-            { label: 'Done', value: doneCount, color: 'text-gold', delta: doneCount > 0 ? `+${doneCount} completed` : '' },
-            { label: 'Cities', value: 18, color: 'text-gold' }
-          ].map((stat, i) => (
-            <div key={i} className="bg-white/5 border border-gold/10 rounded-xl p-4 shadow-xl">
-              <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
-              <div className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">{stat.label}</div>
-              {stat.delta && <div className="text-[10px] text-green-500 mt-1">{stat.delta}</div>}
-            </div>
+      <section className="bg-white/5 border border-gold/20 rounded-xl p-4 space-y-4">
+        <div className="grid md:grid-cols-3 gap-3">
+          <input className="bg-slate-900/70 rounded px-3 py-2 text-sm" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search query" />
+          <input className="bg-slate-900/70 rounded px-3 py-2 text-sm" value={city} onChange={e => setCity(e.target.value)} placeholder="City" />
+          <input className="bg-slate-900/70 rounded px-3 py-2 text-sm" value={category} onChange={e => setCategory(e.target.value)} placeholder="Category" />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {sources.map((s) => (
+            <button key={s.source} onClick={() => toggleSource(s.source)} className={`px-3 py-1 rounded-full text-xs border ${selectedSources.has(s.source) ? 'bg-gold/20 border-gold text-gold' : 'border-slate-600 text-slate-300'}`}>
+              {s.source}
+            </button>
           ))}
         </div>
 
-        {/* Agent Status Row */}
-        <div className="space-y-4">
-          <div className="text-[10px] text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
-            Agent Status
-            <div className="h-px flex-1 bg-gold/10" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {AGENTS.map(agent => {
-              const isActive = isRunning && (
-                (selectedTask === 'text' && agent.id === 'cleaner') ||
-                (selectedTask === 'enrich' && agent.id === 'enricher') ||
-                (selectedTask === 'social' && agent.id === 'social') ||
-                (selectedTask === 'qc' && agent.id === 'validator') ||
-                (selectedTask === 'export' && agent.id === 'exporter')
-              );
-              return (
-                <div key={agent.id} className="bg-white/5 border border-gold/10 rounded-xl p-3 flex items-center gap-4">
-                  <div className="text-gold/60">{agent.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-bold text-slate-200">{agent.name}</div>
-                    <div className="text-[9px] text-slate-500 truncate">{agent.desc}</div>
-                  </div>
-                  <div className={`text-[8px] px-2 py-1 rounded-full font-bold uppercase tracking-widest ${
-                    isActive ? 'bg-green-500/20 text-green-400 animate-pulse' : 'bg-white/5 text-slate-500'
-                  }`}>
-                    {isActive ? 'Running' : 'Idle'}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <button disabled={isRunning || enabledSourceArray.length === 0} onClick={runDiscovery} className="px-4 py-2 rounded bg-gold text-navy font-semibold disabled:opacity-50 flex items-center gap-2">
+          <Play size={16} /> {isRunning ? 'Running...' : 'Run Multi-Source Discovery'}
+        </button>
+
+        <div className="text-xs text-slate-300 space-y-1">
+          {runLogs.map((log, idx) => <div key={idx}>{log}</div>)}
+        </div>
+      </section>
+
+      <section className="bg-white/5 border border-gold/20 rounded-xl p-4 space-y-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex items-center gap-2 text-xs"><Filter size={14}/> Filters</div>
+          <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="bg-slate-900/70 rounded px-2 py-1 text-xs">
+            <option value="all">All sources</option>
+            {SOURCE_ORDER.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-slate-900/70 rounded px-2 py-1 text-xs">
+            <option value="all">All statuses</option>
+            <option value="draft">draft</option>
+            <option value="single_source">single_source</option>
+            <option value="multi_source_verified">multi_source_verified</option>
+            <option value="needs_review">needs_review</option>
+            <option value="approved">approved</option>
+          </select>
         </div>
 
-        {/* Command Box */}
-        <div className="bg-navy/80 border border-gold rounded-2xl p-6 shadow-[0_0_40px_rgba(201,168,76,0.08)] space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="text-2xl">🎯</div>
-            <div>
-              <h2 className="text-sm font-bold text-gold uppercase tracking-widest">Task Commander</h2>
-              <p className="text-[10px] text-slate-500 mt-0.5">Select cities + task type → write instruction → launch</p>
-            </div>
-          </div>
-
-          {/* Task Type Chips */}
-          <div className="space-y-3">
-            <div className="text-[9px] text-slate-500 uppercase tracking-widest">Task Type</div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { id: 'text', label: '🔤 Text Repair', color: 'bg-blue-500' },
-                { id: 'enrich', label: '📍 Enrich Data', color: 'bg-purple-500' },
-                { id: 'social', label: '📱 Collect Socials', color: 'bg-green-500' },
-                { id: 'qc', label: '✅ Quality Check', color: 'bg-orange-500' },
-                { id: 'export', label: '📤 Export Data', color: 'bg-gold' }
-              ].map(task => (
-                <button
-                  key={task.id}
-                  onClick={() => !isRunning && setSelectedTask(task.id)}
-                  className={`px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all border ${
-                    selectedTask === task.id 
-                      ? `${task.color} text-navy border-transparent` 
-                      : 'bg-white/5 text-slate-400 border-transparent hover:border-white/20'
-                  }`}
-                >
-                  {task.label}
-                </button>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-slate-400">
+                <th className="py-2">Business</th><th>Verification</th><th>Sources</th><th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {businesses.map((b) => (
+                <tr key={b.id || b.name} className="border-t border-white/10 align-top">
+                  <td className="py-3">
+                    <div className="font-semibold">{b.name}</div>
+                    <div className="text-xs text-slate-400 flex gap-2"><MapPin size={12}/>{b.city || 'Unknown city'} · {b.category || 'Uncategorized'}</div>
+                    <div className="text-xs text-slate-400">{b.phone || b.address || '-'}</div>
+                  </td>
+                  <td className="py-3">
+                    <div className="text-xs">{Math.round((b.confidence_score || 0) * 100)}%</div>
+                    <div className="text-xs">{b.verification_strength}</div>
+                    <div className={`text-[10px] ${b.validation_status === 'multi_source_verified' ? 'text-green-400' : 'text-yellow-400'}`}>{b.validation_status}</div>
+                  </td>
+                  <td className="py-3">
+                    <div className="flex flex-wrap gap-1">{b.matched_sources?.map(s => <span key={s} className="px-2 py-0.5 rounded bg-slate-800 text-[10px]">{s}</span>)}</div>
+                  </td>
+                  <td className="py-3 text-xs text-slate-300 space-y-1">
+                    {(b.source_evidence || []).slice(0, 3).map((e, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        <CheckCircle2 size={12} className="text-green-400" /> {e.source} {e.sourceUrl ? <a href={e.sourceUrl} className="underline" target="_blank">link</a> : null}
+                      </div>
+                    ))}
+                  </td>
+                </tr>
               ))}
-            </div>
-          </div>
-
-          {/* City Grid */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-[9px] text-slate-500 uppercase tracking-widest">Select Cities</div>
-              <div className="flex gap-4">
-                <button onClick={selectAll} className="text-[9px] text-gold underline underline-offset-2 hover:text-gold-bright">Select All</button>
-                <button onClick={clearAll} className="text-[9px] text-gold underline underline-offset-2 hover:text-gold-bright">Clear All</button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {CITIES.map(city => {
-                const isSelected = selectedCities.has(city.id);
-                const progress = cityProgress[city.id] || 0;
-                const isCityRunning = isRunning && isSelected && progress < 100;
-                return (
-                  <div
-                    key={city.id}
-                    onClick={() => toggleCity(city.id)}
-                    className={`relative p-3 rounded-xl border transition-all cursor-pointer group ${
-                      isCityRunning ? 'border-green-500/50 bg-green-500/5 animate-running-pulse' :
-                      isSelected ? 'border-gold bg-gold/10' : 'border-gold/10 bg-white/5 hover:border-gold/30'
-                    }`}
-                  >
-                    <div className={`absolute top-2 right-2 w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                      isSelected ? 'bg-gold border-gold text-navy' : 'border-gold/20'
-                    }`}>
-                      {isSelected && <CheckCircle2 size={10} />}
-                    </div>
-                    <div className="text-[11px] font-bold text-slate-200">{city.en}</div>
-                    <div className="text-[10px] text-slate-500 font-ar mt-0.5">{city.ar}</div>
-                    <div className="text-[9px] text-slate-600 mt-2">{city.count.toLocaleString()} records</div>
-                    
-                    <div className="mt-3 space-y-1">
-                      <div className="flex justify-between items-center text-[8px] uppercase tracking-tighter">
-                        <span className={isCityRunning ? 'text-green-400' : 'text-slate-500'}>
-                          {progress >= 100 ? 'Done' : isCityRunning ? 'Running' : 'Idle'}
-                        </span>
-                        {isRunning && isSelected && <span className="text-slate-400">{Math.floor(progress)}%</span>}
-                      </div>
-                      <div className="h-0.5 bg-white/5 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progress}%` }}
-                          className={`h-full ${progress >= 100 ? 'bg-blue-400' : 'bg-green-500'}`}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Instruction + Launch */}
-          <div className="space-y-3">
-            <div className="text-[9px] text-slate-500 uppercase tracking-widest">Custom Instruction</div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <textarea
-                value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
-                className="flex-1 bg-white/5 border border-gold/20 rounded-xl p-4 text-xs text-slate-200 outline-none focus:border-gold transition-all min-h-[120px]"
-                placeholder="Instructions should be specific and actionable for the selected agent."
-              />
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={launchTasks}
-                  disabled={isRunning}
-                  className="px-8 py-3 bg-gold hover:bg-gold-bright text-navy font-bold text-xs uppercase tracking-widest rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_4px_20px_rgba(201,168,76,0.2)]"
-                >
-                  ▶ Launch
-                </button>
-                {isRunning && (
-                  <button
-                    onClick={stopAll}
-                    className="px-8 py-3 bg-transparent border border-rose-500 text-rose-500 hover:bg-rose-500/10 font-bold text-xs uppercase tracking-widest rounded-xl transition-all"
-                  >
-                    ■ Stop
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="text-[10px] text-slate-500 italic">
-              {selectedCities.size > 0 
-                ? <span className="text-gold">{selectedCities.size} cities selected</span> 
-                : 'No cities selected'} · Task: <span className="text-gold">{selectedTask.toUpperCase()}</span>
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
 
-        {/* Activity Log */}
-        <div className="space-y-4">
-          <div className="text-[10px] text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
-            Live Activity Log
-            <div className="h-px flex-1 bg-gold/10" />
-          </div>
-          <div className="bg-black/30 border border-gold/10 rounded-xl p-4 h-[250px] overflow-y-auto custom-scrollbar font-mono text-[10px] space-y-2">
-            {logs.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2">
-                <div className="text-2xl">📡</div>
-                <div className="uppercase tracking-widest">Awaiting system activity...</div>
-              </div>
-            ) : (
-              logs.map(log => (
-                <div key={log.id} className="flex gap-4 items-start">
-                  <span className="text-slate-600 shrink-0">{log.time}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest shrink-0 ${
-                    log.type === 'info' ? 'bg-blue-500/20 text-blue-400' :
-                    log.type === 'ok' ? 'bg-green-500/20 text-green-400' :
-                    log.type === 'warn' ? 'bg-orange-500/20 text-orange-400' :
-                    'bg-gold/20 text-gold'
-                  }`}>
-                    {log.type}
-                  </span>
-                  <span className="text-slate-300 leading-relaxed">{log.message}</span>
-                </div>
-              ))
-            )}
-            <div ref={logEndRef} />
-          </div>
+        <div className="flex items-center justify-between text-xs">
+          <button className="px-2 py-1 border rounded disabled:opacity-40" disabled={page <= 1} onClick={() => loadBusinesses(page - 1)}>Prev</button>
+          <span>Page {page} / {totalPages}</span>
+          <button className="px-2 py-1 border rounded disabled:opacity-40" disabled={page >= totalPages} onClick={() => loadBusinesses(page + 1)}>Next</button>
         </div>
-
-      </div>
+      </section>
     </div>
   );
 }

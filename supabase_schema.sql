@@ -45,3 +45,21 @@ CREATE POLICY "Public Read Agents" ON agents FOR SELECT USING (true);
 -- 5. Admin Write Policies (Replace with your auth logic)
 CREATE POLICY "Admin All Businesses" ON businesses FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Admin All Agents" ON agents FOR ALL USING (auth.role() = 'authenticated');
+
+-- Multi-source verification extension for businesses
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS name_ar TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS name_ku TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS governorate TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS verification_strength TEXT DEFAULT 'weak';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS validation_status TEXT DEFAULT 'draft';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS confidence_score FLOAT DEFAULT 0.0;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS source_evidence JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS facebook_url TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS instagram_url TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS google_maps_url TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS matched_sources TEXT[] DEFAULT '{}';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS collected_by_agent TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS raw_source_payload_ref TEXT;
