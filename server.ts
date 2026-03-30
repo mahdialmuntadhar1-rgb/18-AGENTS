@@ -31,6 +31,11 @@ async function startServer() {
     { name: "QC Overseer", governorate: "QC Overseer", category: "Quality Control", status: "active", governmentRate: "Supervisory", recordsInserted: 15420, lastActivity: "1m ago" },
   ];
 
+
+  let activeDiscoveryRun: Promise<void> | null = null;
+  let activeDiscoveryRunId: string | null = null;
+
+
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
@@ -60,6 +65,48 @@ async function startServer() {
       res.json({ status: "started", agentName });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/discovery/run", async (req, res) => {
+    const { agentName } = req.body || {};
+
+    if (activeDiscoveryRun) {
+      return res.status(409).json({
+        ok: false,
+        error: "A discovery run is already in progress",
+        runId: activeDiscoveryRunId,
+      });
+    }
+
+    const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    activeDiscoveryRunId = runId;
+
+    try {
+      activeDiscoveryRun = (async () => {
+        try {
+          if (agentName) {
+            await runGovernor(agentName);
+          } else {
+            await runGovernor("Agent-01");
+          }
+        } finally {
+          activeDiscoveryRun = null;
+          activeDiscoveryRunId = null;
+        }
+      })();
+
+      if ((req.query?.mode || "direct") === "direct") {
+        await activeDiscoveryRun;
+        return res.json({ ok: true, runId, mode: "direct", status: "completed" });
+      }
+
+      return res.status(202).json({ ok: true, runId, mode: "async", status: "running" });
+    } catch (error: any) {
+      activeDiscoveryRun = null;
+      activeDiscoveryRunId = null;
+      console.error("Discovery run failed:", error);
+      return res.status(500).json({ ok: false, error: error?.message || "Discovery run failed", runId });
     }
   });
 

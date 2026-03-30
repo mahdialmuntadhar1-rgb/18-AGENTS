@@ -9,9 +9,8 @@ export abstract class BaseGovernor {
   async run() {
     await this.setStatus("active");
     try {
-      // 1. Concurrency-safe task claim using RPC (FOR UPDATE SKIP LOCKED)
       const task = await this.claimTask();
-      
+
       if (!task) {
         console.log(`${this.agentName}: No pending tasks found. Entering idle mode.`);
         await this.setStatus("idle");
@@ -19,68 +18,86 @@ export abstract class BaseGovernor {
       }
 
       console.log(`${this.agentName}: Processing task ${task.id} - ${task.category} in ${task.city}`);
-      
-      // 2. Scrape/Gather data
+
       const businesses = await this.gather(task.city, task.category);
-      
+
       if (businesses.length > 0) {
-        // 3. Validate and 4. Insert (Supabase handles duplicate protection via unique index)
         const validated = await this.validate(businesses);
-        const { added, errors } = await this.store(validated, task.government_rate);
-        
+        const { added, errors } = await this.store(validated, task.government_rate || this.governmentRate);
+
         await this.log("success", added, errors);
       }
 
-      // 5. Mark task as complete
       await this.completeTask(task.id);
-      
     } catch (err) {
       console.error(`Error in ${this.agentName}:`, err);
       await this.setStatus("error");
+      throw err;
+    } finally {
+      await this.setStatus("idle");
     }
-    await this.setStatus("idle");
   }
 
-  /**
-   * Calls the Supabase RPC for concurrency-safe task claiming
-   */
   private async claimTask() {
-    // This RPC must be created in Supabase SQL editor:
-    // CREATE OR REPLACE FUNCTION claim_next_task(agent_name TEXT)
-    // RETURNS SETOF agent_tasks AS $$
-    // DECLARE
-    //   target_id BIGINT;
-    // BEGIN
-    //   SELECT id INTO target_id
-    //   FROM agent_tasks
-    //   WHERE status = 'pending'
-    //   ORDER BY created_at
-    //   LIMIT 1
-    //   FOR UPDATE SKIP LOCKED;
-    //
-    //   IF target_id IS NOT NULL THEN
-    //     RETURN QUERY
-    //     UPDATE agent_tasks
-    //     SET status = 'processing', assigned_agent = agent_name
-    //     WHERE id = target_id
-    //     RETURNING *;
-    //   END IF;
-    // END;
-    // $$ LANGUAGE plpgsql;
-
-    const { data, error } = await this.supabase.rpc("claim_next_task", {
-      agent_name: this.agentName
+    const rpcResult = await this.supabase.rpc("claim_next_task", {
+      agent_name: this.agentName,
     });
 
-    if (error || !data || data.length === 0) return null;
-    return data[0];
+    if (!rpcResult.error && rpcResult.data && rpcResult.data.length > 0) {
+      return rpcResult.data[0];
+    }
+
+    if (rpcResult.error) {
+      console.warn(`${this.agentName}: claim_next_task RPC unavailable, falling back to direct claim.`, rpcResult.error.message);
+    }
+
+    const { data: candidates, error: selectError } = await this.supabase
+      .from("agent_tasks")
+      .select("*")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (selectError || !candidates || candidates.length === 0) {
+      if (selectError) {
+        console.error(`${this.agentName}: Failed to fetch pending tasks.`, selectError.message);
+      }
+      return null;
+    }
+
+    const candidate = candidates[0];
+    const assignment = await this.supabase
+      .from("agent_tasks")
+      .update({ status: "processing", assigned_agent: this.agentName })
+      .eq("id", candidate.id)
+      .eq("status", "pending")
+      .select("*")
+      .limit(1);
+
+    if (!assignment.error && assignment.data && assignment.data.length > 0) {
+      return assignment.data[0];
+    }
+
+    const statusOnlyAssignment = await this.supabase
+      .from("agent_tasks")
+      .update({ status: "processing" })
+      .eq("id", candidate.id)
+      .eq("status", "pending")
+      .select("*")
+      .limit(1);
+
+    if (statusOnlyAssignment.error || !statusOnlyAssignment.data || statusOnlyAssignment.data.length === 0) {
+      if (statusOnlyAssignment.error) {
+        console.error(`${this.agentName}: Failed to claim task ${candidate.id}.`, statusOnlyAssignment.error.message);
+      }
+      return null;
+    }
+
+    return statusOnlyAssignment.data[0];
   }
 
-  private async completeTask(taskId: number) {
-    await this.supabase
-      .from("agent_tasks")
-      .update({ status: "completed" })
-      .eq("id", taskId);
+  private async completeTask(taskId: number | string) {
+    await this.supabase.from("agent_tasks").update({ status: "completed" }).eq("id", taskId);
   }
 
   async store(items: any[], govRate: string) {
@@ -99,13 +116,10 @@ export abstract class BaseGovernor {
         description: item.description,
         source_url: item.source_url,
         created_by_agent: this.agentName,
-        verification_status: "pending"
+        verification_status: "pending",
       };
 
-      // Use upsert with onConflict to handle the unique index (name, city)
-      const { error } = await this.supabase
-        .from("businesses")
-        .upsert(businessData, { onConflict: "name,city" });
+      const { error } = await this.supabase.from("businesses").upsert(businessData, { onConflict: "name,city" });
 
       if (error) {
         console.error(`Error inserting ${item.name}:`, error.message);
@@ -120,22 +134,18 @@ export abstract class BaseGovernor {
   async setStatus(status: string) {
     await this.supabase
       .from("agents")
-      .update({ 
-        status, 
+      .update({
+        status,
         last_run: new Date(),
         category: this.category,
-        government_rate: this.governmentRate
+        government_rate: this.governmentRate,
       })
       .eq("agent_name", this.agentName);
   }
 
   async log(result: string, added: number, updated: number) {
-    const { data: agent } = await this.supabase
-      .from("agents")
-      .select("id")
-      .eq("agent_name", this.agentName)
-      .single();
-      
+    const { data: agent } = await this.supabase.from("agents").select("id").eq("agent_name", this.agentName).single();
+
     if (agent) {
       await this.supabase.from("agent_logs").insert({
         agent_id: agent.id,
