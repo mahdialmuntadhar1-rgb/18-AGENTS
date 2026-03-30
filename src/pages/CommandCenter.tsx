@@ -201,10 +201,24 @@ export default function CommandCenter() {
     let createdTaskId: string | null = null;
 
     try {
-      const taskInsert = await supabase
-        .from('agent_tasks')
-        .insert({
-          task_type: selectedTask,
+      const response = await fetch('/api/discovery/run?mode=direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentName: 'Agent-01',
+          taskType: selectedTask,
+          instruction,
+          cities,
+        }),
+      });
+
+      const discoveryResult = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(discoveryResult?.error || `Discovery run failed with status ${response.status}`);
+      }
+
+      const payloadCandidates = [
+        {
           type: selectedTask,
           prompt: instruction,
           instruction,
@@ -231,39 +245,21 @@ export default function CommandCenter() {
       await addLog('info', `Cities: ${cities.map(id => CITIES.find(c => c.id === id)?.en).join(', ')}`);
       await addLog('agent', `${selectedTask.toUpperCase()} agent activated`);
 
-      const response = await fetch('/api/discovery/run?mode=direct', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentName: 'Agent-01',
-          taskType: selectedTask,
-          instruction,
-          cities,
-        }),
+      setCityProgress(prev => {
+        const next = { ...prev };
+        cities.forEach((id) => {
+          next[id] = 100;
+        });
+        return next;
       });
-
-      const discoveryResult = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(discoveryResult?.error || `Discovery run failed with status ${response.status}`);
-      }
-
-      const finishedProgress: Record<string, number> = {};
-      cities.forEach((cityId) => { finishedProgress[cityId] = 100; });
-      setCityProgress(finishedProgress);
       setDoneCount(cities.length);
 
       if (createdTaskId) {
-        await supabase
-          .from('agent_tasks')
-          .update({
-            status: 'completed',
-            progress: 100,
-            result_summary: `Discovery completed for ${cities.length} cities`,
-          })
-          .eq('id', createdTaskId);
+        await supabase.from('agent_tasks').update({ status: 'completed', progress: 100 }).eq('id', createdTaskId);
       }
 
-      await addLog('ok', `🏁 Discovery completed · ${cities.length} cities processed`);
+      await addLog('ok', `Discovery run ${discoveryResult?.runId || ''} completed successfully.`);
+      await addLog('info', `🏁 Run complete · ${cities.length} cities processed`);
       setIsRunning(false);
       runInFlightRef.current = false;
     } catch (error: any) {
