@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, XCircle, Edit2, RotateCw, Search, Filter, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -7,8 +8,31 @@ import { VerifiedBusiness } from '../types';
 export default function ApprovalHub() {
   const [businesses, setBusinesses] = useState<VerifiedBusiness[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+=======
+import React, { useState, useEffect } from 'react';
+import { CheckCircle2, XCircle, Search, ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
+interface Business {
+  id: string;
+  business_name: string;
+  city: string;
+  category: string;
+  description?: string;
+  verification_status: string;
+  source_name?: string;
+  created_at: string;
+}
+
+export default function ApprovalHub() {
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+>>>>>>> Stashed changes
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+<<<<<<< Updated upstream
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -73,6 +97,42 @@ export default function ApprovalHub() {
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+=======
+  const fetchPending = async () => {
+    setIsLoading(true);
+    setError(null);
+    const { data, error: err } = await supabase
+      .from('businesses')
+      .select('id, business_name, city, category, description, verification_status, source_name, created_at')
+      .in('verification_status', ['pending', 'flagged'])
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (err) setError(err.message);
+    else setBusinesses((data ?? []) as Business[]);
+    setIsLoading(false);
+  };
+
+  useEffect(() => { fetchPending(); }, []);
+
+  const handleAction = async (id: string, action: 'approve' | 'reject') => {
+    setActionLoading(id + action);
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const { error: err } = await supabase
+      .from('businesses')
+      .update({ verification_status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (err) {
+      setError(err.message);
+    } else {
+      setBusinesses(prev => prev.filter(b => b.id !== id));
+    }
+    setActionLoading(null);
+  };
+
+  const filtered = businesses.filter(b =>
+    b.business_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+>>>>>>> Stashed changes
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-300 font-sans p-4 md:p-6 lg:p-8">
@@ -91,7 +151,7 @@ export default function ApprovalHub() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
               <input 
                 type="text" 
-                placeholder="Search businesses..." 
+                placeholder="Search pending businesses..." 
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -100,12 +160,10 @@ export default function ApprovalHub() {
                 className="bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:border-emerald-500 outline-none"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors">
-              <Filter size={16} /> Filter
-            </button>
           </div>
         </header>
 
+<<<<<<< Updated upstream
         <div className="bg-[#111827] rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -202,6 +260,86 @@ export default function ApprovalHub() {
             </div>
           )}
         </div>
+=======
+        {isLoading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={32} className="animate-spin text-emerald-400" />
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400">
+            <AlertCircle size={18} />
+            <span className="text-sm">{error}</span>
+          </div>
+        )}
+
+        {!isLoading && !error && (
+          <div className="bg-[#111827] rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+            {filtered.length === 0 ? (
+              <div className="py-20 text-center text-slate-500">
+                <ShieldCheck size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="font-bold text-sm uppercase tracking-widest">No pending approvals</p>
+                <p className="text-xs mt-1">All businesses have been reviewed, or none have been collected yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900/50 border-b border-slate-800">
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">Business Name</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">City</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">Category</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">Source</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">Status</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {filtered.map(b => (
+                      <tr key={b.id} className="hover:bg-slate-800/20 transition-colors">
+                        <td className="px-6 py-4 font-bold text-white">{b.business_name}</td>
+                        <td className="px-6 py-4 text-slate-400">{b.city}</td>
+                        <td className="px-6 py-4 text-slate-400 capitalize">{b.category}</td>
+                        <td className="px-6 py-4 text-xs text-slate-500">{b.source_name ?? '—'}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
+                            b.verification_status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                            b.verification_status === 'flagged' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                            'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          }`}>
+                            {b.verification_status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleAction(b.id, 'approve')}
+                              disabled={actionLoading === b.id + 'approve'}
+                              className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 rounded-lg transition-colors"
+                              title="Approve"
+                            >
+                              {actionLoading === b.id + 'approve' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                            </button>
+                            <button
+                              onClick={() => handleAction(b.id, 'reject')}
+                              disabled={actionLoading === b.id + 'reject'}
+                              className="p-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 disabled:opacity-50 rounded-lg transition-colors"
+                              title="Reject"
+                            >
+                              {actionLoading === b.id + 'reject' ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+>>>>>>> Stashed changes
 
       </div>
     </div>

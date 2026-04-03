@@ -9,7 +9,16 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "analyze:repo": "node codex-analyzer.js",
+    "codex:analyze": "node scripts/codex-repo-analyzer.mjs",
+    "setup:env": "node scripts/setup-env.mjs",
+    "import:csv": "node scripts/import-csv.mjs",
+    "test:agents": "node scripts/test-agents.mjs",
+    "test:agents:full": "node scripts/test-agents.mjs full",
+    "test:production": "tsx scripts/test-production.mjs",
+    "research:gemini": "node scripts/run-gemini-research.mjs",
+    "verify:businesses": "node scripts/run-gemini-research.mjs verify-all"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -18,6 +27,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "better-sqlite3": "^12.4.1",
     "clsx": "^2.1.1",
+    "csv-parse": "^6.2.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",

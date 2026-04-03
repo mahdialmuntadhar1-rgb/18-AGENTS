@@ -4,6 +4,7 @@ import { handleSupabaseError, OperationType } from '../lib/supabaseUtils';
 
 export const businessService = {
   async getStats() {
+<<<<<<< Updated upstream
     try {
       const [
         { count: rawCount, error: rawError },
@@ -42,6 +43,26 @@ export const businessService = {
         taskCount: 0
       };
     }
+=======
+    const [
+      verifiedCountResult,
+      pendingCountResult,
+      approvedCountResult,
+      taskCountResult,
+    ] = await Promise.all([
+      supabase.from('businesses').select('*', { count: 'exact', head: true }),
+      supabase.from('businesses').select('*', { count: 'exact', head: true }).eq('verification_status', 'pending'),
+      supabase.from('businesses').select('*', { count: 'exact', head: true }).eq('verification_status', 'approved'),
+      supabase.from('agent_tasks').select('*', { count: 'exact', head: true }),
+    ]);
+
+    return {
+      verifiedCount: verifiedCountResult.count ?? 0,
+      pendingCount: pendingCountResult.count ?? 0,
+      approvedCount: approvedCountResult.count ?? 0,
+      taskCount: taskCountResult.count ?? 0,
+    };
+>>>>>>> Stashed changes
   },
 
   async getVerifiedBusinesses(filters: any) {
@@ -61,6 +82,7 @@ export const businessService = {
         query = query.gte('confidence_score', filters.minScore);
       }
 
+<<<<<<< Updated upstream
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) {
         await handleSupabaseError(error, OperationType.GET, 'businesses');
@@ -110,6 +132,36 @@ export const businessService = {
       throw error;
     }
   }
+=======
+    if (filters.status && filters.status !== 'All') query = query.eq('verification_status', filters.status.toLowerCase());
+    if (filters.city && filters.city !== 'All') query = query.eq('city', filters.city);
+    if (filters.category && filters.category !== 'All') query = query.eq('category', filters.category);
+    if (filters.minScore) query = query.gte('confidence_score', filters.minScore);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data ?? []) as any[];
+  },
+
+  async updateStatus(id: string, status: string) {
+    const { error } = await supabase
+      .from('businesses')
+      .update({ verification_status: status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  async batchApprove(ids: string[]) {
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from('businesses')
+      .update({ verification_status: 'approved', updated_at: new Date().toISOString() })
+      .in('id', ids);
+
+    if (error) throw error;
+  },
+>>>>>>> Stashed changes
 };
 
 export const cleaningService = {
@@ -123,12 +175,17 @@ export const cleaningService = {
     }
   },
 
-  calculateScores(business: Partial<VerifiedBusiness>) {
+  calculateScores(business: any) {
     let vScore = 0;
     let cScore = 0;
 
+<<<<<<< Updated upstream
     const hasName = !!(business.name_ar || business.name_ku || business.name_en);
     const hasLocation = !!(business.city);
+=======
+    const hasName = !!business.business_name;
+    const hasLocation = !!business.city;
+>>>>>>> Stashed changes
     const hasPhone = !!business.phone;
 
     if (hasName) vScore = 1;
@@ -143,6 +200,7 @@ export const cleaningService = {
   },
 
   async pushToRaw(records: any[]) {
+<<<<<<< Updated upstream
     try {
       const { error } = await supabase.from('raw_businesses').insert(records);
       if (error) {
@@ -154,6 +212,11 @@ export const cleaningService = {
       throw error;
     }
   }
+=======
+    const { error } = await supabase.from('businesses').insert(records);
+    if (error) throw error;
+  },
+>>>>>>> Stashed changes
 };
 
 export const taskService = {

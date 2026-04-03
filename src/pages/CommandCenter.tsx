@@ -156,6 +156,7 @@ export default function CommandCenter() {
     }
   };
 
+<<<<<<< Updated upstream
   const toggleCity = (id: string) => {
     if (isRunning) return;
     const next = new Set(selectedCities);
@@ -167,6 +168,41 @@ export default function CommandCenter() {
   const selectAll = () => {
     if (isRunning) return;
     setSelectedCities(new Set(CITIES.map(c => c.id)));
+=======
+  const startOrchestrator = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/orchestrator/start', { method: 'POST' });
+      const result = await response.json();
+      await refreshRuntimeState();
+      if (response.ok) {
+        setMessage(`Orchestrator started: ${result.queuedAgents} agents triggered.`);
+      } else {
+        setMessage(`Failed to start orchestrator: ${result.error}`);
+      }
+    } catch (err: any) {
+      setMessage(`Error starting orchestrator: ${err.message}`);
+    }
+    setLoading(false);
+  };
+
+  const stopOrchestrator = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/orchestrator/stop', { method: 'POST' });
+      await refreshRuntimeState();
+      if (response.ok) {
+        setMessage('Orchestrator status reset to IDLE. Active background tasks marked as failed.');
+      } else {
+        setMessage('Failed to reset orchestrator status.');
+      }
+    } catch (err: any) {
+      setMessage(`Error stopping orchestrator: ${err.message}`);
+    }
+    setLoading(false);
+>>>>>>> Stashed changes
   };
 
   const clearAll = () => {
@@ -277,6 +313,7 @@ export default function CommandCenter() {
   };
 
   return (
+<<<<<<< Updated upstream
     <div className="min-h-screen text-[#e2d9c8] font-mono p-4 md:p-8">
       <div className="max-w-[1600px] mx-auto space-y-8">
         
@@ -298,7 +335,82 @@ export default function CommandCenter() {
             <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] text-green-400 font-bold uppercase tracking-widest">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
               Live
+=======
+    <div className="p-6 md:p-8 space-y-8">
+      <header className="space-y-3">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-[#C9A84C]">18 AGENTS</p>
+        <h1 className="text-3xl font-black text-[#1B2B5E] tracking-tight">Agent Operations Console</h1>
+        <p className="text-sm text-gray-600 max-w-3xl">
+          Control, monitor, and orchestrate AI agents across Iraqi governorates.
+          This console is dedicated to runtime operations and is separate from the customer-facing directory product.
+        </p>
+      </header>
+
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {summaryCards.map((card) => (
+          <article key={card.title} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-black uppercase tracking-wider text-gray-500">{card.title}</span>
+              <span className="text-[#1B2B5E]">{card.icon}</span>
             </div>
+            <div className="text-2xl font-black text-[#1B2B5E]">
+              {card.value === null ? <span className="text-sm text-gray-400">Unavailable</span> : card.value}
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-lg font-black text-[#1B2B5E] uppercase tracking-wider">Quick Actions</h2>
+            <button 
+              type="button"
+              className={`${actionButton} border border-gray-300 text-gray-300`} 
+              onClick={refreshRuntimeState} 
+              disabled={loading}
+            >
+              <RefreshCw size={14} /> Refresh Runtime State
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button 
+              type="button"
+              disabled={loading} 
+              onClick={startOrchestrator} 
+              className={`${actionButton} bg-emerald-600 text-white`}
+            >
+              <Play size={14} /> Start Orchestrator
+            </button>
+            <button 
+              type="button"
+              disabled={loading} 
+              onClick={stopOrchestrator} 
+              className={`${actionButton} border border-rose-300 text-rose-700 bg-rose-50`}
+            >
+              <Square size={14} /> Stop Orchestrator
+            </button>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Record Manual Command / Instruction (Log Only)</label>
+            <div className="flex gap-3 flex-col md:flex-row">
+              <input
+                value={instruction}
+                onChange={(e) => setInstruction(e.target.value)}
+                placeholder="Enter an instruction for the audit log..."
+                className="border border-gray-300 rounded-xl px-3 py-2 flex-1 text-sm"
+              />
+              <button
+                type="button"
+                disabled={loading || !instruction.trim()}
+                onClick={queueInstruction}
+                className={`${actionButton} bg-[#1B2B5E] text-white justify-center`}
+              >
+                <Terminal size={14} /> Log Instruction
+              </button>
+>>>>>>> Stashed changes
+            </div>
+            <p className="text-[10px] text-gray-400 italic">Manual instructions are recorded in the task audit log but are not automatically processed by the backend.</p>
           </div>
         </header>
 

@@ -4,6 +4,7 @@ export class QualityControlGovernor extends BaseGovernor {
   category = "Quality Control";
   agentName = "QC Overseer";
   governmentRate = "Supervisory";
+  city = "System";
 
   async gather(): Promise<any[]> {
     console.log("QC Manager: Auditing system data...");
